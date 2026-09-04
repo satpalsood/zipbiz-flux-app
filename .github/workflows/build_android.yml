@@ -8,11 +8,29 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Android Release (APK & AAB)
+  build-apk:
+    name: Build Universal APK
     runs-on: ubuntu-latest
 
     steps:
+      - name: Free Disk Space on Runner
+        run: |
+          echo "=== Free disk space BEFORE cleanup ==="
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/21* /usr/local/lib/android/sdk/ndk/23* /usr/local/lib/android/sdk/ndk/24* /usr/local/lib/android/sdk/ndk/26* /usr/local/lib/android/sdk/ndk/27*
+          sudo systemctl stop docker.socket docker.service || true
+          sudo rm -rf /var/lib/docker || true
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile || true
+          echo "=== Free disk space AFTER cleanup ==="
+          df -h
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -39,15 +57,61 @@ jobs:
       - name: Build Universal Release APK
         run: flutter build apk --release
 
-      - name: Build Release Android App Bundle (AAB)
-        run: flutter build appbundle --release
-
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: zipbiz-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+  build-aab:
+    name: Build Google Play Bundle (AAB)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space on Runner
+        run: |
+          echo "=== Free disk space BEFORE cleanup ==="
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/lib/android/sdk/ndk/21* /usr/local/lib/android/sdk/ndk/23* /usr/local/lib/android/sdk/ndk/24* /usr/local/lib/android/sdk/ndk/26* /usr/local/lib/android/sdk/ndk/27*
+          sudo systemctl stop docker.socket docker.service || true
+          sudo rm -rf /var/lib/docker || true
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile || true
+          echo "=== Free disk space AFTER cleanup ==="
+          df -h
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter Installation
+        run: flutter --version
+
+      - name: Get Flutter Packages
+        run: flutter pub get
+
+      - name: Build Release Android App Bundle (AAB)
+        run: flutter build appbundle --release
 
       - name: Upload Release AAB (Google Play Bundle)
         uses: actions/upload-artifact@v4

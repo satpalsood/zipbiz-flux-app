@@ -7,8 +7,9 @@ Map<String, dynamic> environment = {
     /// 🌍 The register URL domain that matches with Envato Purchase Code
     /// 🔑 Also, make sure to update the envatoPurchaseCode from configs/env.properties
     'url': 'https://zipbiz.in',
-    'consumerKey': 'ck_your_consumer_key_here',
-    'consumerSecret': 'cs_your_consumer_secret_here',
+    'consumerKey': 'ck_60bb6f24d1c9f81bb8bbd757d97f199310f8c083',
+    'consumerSecret': 'cs_0088ec7d85e515dedfe1b892f5116853692a2b57',
+    'accessToken': 'admin|1820058933|V11SqeREojNl24cebQFmodq4WzsazxwIRvs00b9OB83|f4b43ae2c3aa2ba19f5c611a685f36c82b912c4fb2b15fd29159aafb225dcbad',
 
     /// Wordpress blog, it could be removed if using the same above url
     'blog': 'https://zipbiz.in',

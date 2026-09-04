@@ -8,6 +8,28 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:412823237422:android:b73da2c366973ebefb40bf",
+        "android_client_info": {
+          "package_name": "in.zipbiz.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCli7bQK6iRR4rbIDPwhvP3C0us08z1zs"
+        },
+        {
+          "current_key": "AIzaSyDSNYVC-8DU9BTcyqkeN9c5pgVhwOBAvGg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:412823237422:android:eece52696555a13bfb40bf",
         "android_client_info": {
           "package_name": "com.inspireui.delivery"

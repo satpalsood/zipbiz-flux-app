@@ -1,0 +1,362 @@
+{
+  "HorizonLayout": [
+    {
+      "layout": "logo",
+      "showMenu": true,
+      "showSearch": false,
+      "showLogo": true,
+      "enableBackground": true
+    },
+    {
+      "isSafeArea": false,
+      "showSearch": true,
+      "usePrimaryColor": false,
+      "borderInput": true,
+      "title": "Search businesses, services & places...",
+      "alignment": "centerLeft",
+      "fontWeight": 0,
+      "radius": 24.0,
+      "fontSize": 14.0,
+      "textOpacity": 0.7,
+      "marginLeft": 16.0,
+      "marginRight": 16.0,
+      "marginBottom": 8.0,
+      "marginTop": 4.0,
+      "paddingLeft": 12.0,
+      "paddingRight": 16.0,
+      "paddingTop": 0.0,
+      "paddingBottom": 0.0,
+      "height": 46.0,
+      "rotate": [],
+      "layout": "header_search"
+    },
+    {
+      "layout": "bannerImage",
+      "isSlider": true,
+      "autoPlay": true,
+      "showNumber": false,
+      "design": "default",
+      "showBackGround": true,
+      "radius": 12.0,
+      "height": 0.22,
+      "items": [
+        {
+          "image": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80",
+          "padding": 16.0
+        },
+        {
+          "image": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80",
+          "padding": 16.0
+        },
+        {
+          "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80",
+          "padding": 16.0
+        }
+      ]
+    },
+    {
+      "layout": "category",
+      "type": "image",
+      "wrap": false,
+      "showShortDescription": false,
+      "paddingTop": 8.0,
+      "size": 1.0,
+      "radius": 12.0,
+      "items": [
+        {
+          "category": "63",
+          "showText": true,
+          "name": "Eat & Drink",
+          "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=300&q=80"
+        },
+        {
+          "category": "65",
+          "showText": true,
+          "name": "Services",
+          "image": "https://images.unsplash.com/photo-1521791136064-7986c2920216?w=300&q=80"
+        },
+        {
+          "category": "64",
+          "showText": true,
+          "name": "Real Estate",
+          "image": "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=300&q=80"
+        },
+        {
+          "category": "68",
+          "showText": true,
+          "name": "Fitness",
+          "image": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&q=80"
+        },
+        {
+          "category": "66",
+          "showText": true,
+          "name": "Events",
+          "image": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300&q=80"
+        },
+        {
+          "category": "67",
+          "showText": true,
+          "name": "Shopping",
+          "image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=300&q=80"
+        },
+        {
+          "category": "69",
+          "showText": true,
+          "name": "Automotive",
+          "image": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=300&q=80"
+        },
+        {
+          "category": "70",
+          "showText": true,
+          "name": "Hotels",
+          "image": "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&q=80"
+        }
+      ],
+      "line": false,
+      "marginLeft": 12.0,
+      "marginRight": 12.0,
+      "marginTop": 10.0,
+      "marginBottom": 10.0,
+      "paddingX": 10.0,
+      "paddingY": 10.0,
+      "marginX": 0.0,
+      "marginY": 0.0,
+      "hideTitle": false,
+      "noBackground": false,
+      "imageBorderWidth": 0.0,
+      "imageBorderColor": "ffe61a00",
+      "imageBorderStyle": "dot",
+      "imageSpacing": 0.0,
+      "border": 0.6,
+      "enableBorder": false,
+      "textAlignment": "topCenter",
+      "imageBoxFit": "fitWidth",
+      "columns": 4,
+      "itemSize": {
+        "width": 270.0,
+        "height": 118.0
+      }
+    },
+    {
+      "layout": "bannerMap",
+      "title": "Explore Businesses Near You",
+      "height": 150.0,
+      "paddingHoz": 16.0,
+      "paddingVer": 12.0,
+      "zoom": 14.0,
+      "radius": 14.0
+    },
+    {
+      "name": "Featured Businesses",
+      "layout": "twoColumn",
+      "showHeart": true
+    },
+    {
+      "name": "Popular Places",
+      "layout": "card",
+      "showHeart": true
+    },
+    {
+      "name": "Recently Viewed",
+      "layout": "recentView"
+    }
+  ],
+  "Setting": {
+    "MainColor": "#1E60FF",
+    "FontFamily": "Roboto",
+    "FontHeader": "Roboto",
+    "ProductListLayout": "list",
+    "StickyHeader": false,
+    "ShowChat": true,
+    "useMaterial3": true,
+    "AgeRestriction": {
+      "enable": false,
+      "imageUrl": "",
+      "backgroundImageUrl": "",
+      "title": "Welcome to our shop\nYou must be 21 or older to enter",
+      "deniedMessage": "You are not of legal age to use this application",
+      "hintMessage": "What is your year of birth?",
+      "minimumAge": 21,
+      "useLogo": true,
+      "alwaysShowUponOpen": true
+    },
+    "AboutUS": "https://zipbiz.in",
+    "Privacy": "https://zipbiz.in/privacy-policy/",
+    "FAQ": "https://zipbiz.in/faq/",
+    "News": "https://zipbiz.in/blog/",
+    "Support": "https://zipbiz.in/contact/",
+    "DownloadApp": "https://zipbiz.in/",
+    "SmartEngagementBanner": {
+      "popup": {
+        "enable": false,
+        "data": {
+          "layout": "bannerImage",
+          "design": "static",
+          "fit": "fitHeight",
+          "marginLeft": null,
+          "items": [
+            {
+              "image": "https://i.imgur.com/ZL1LO75.png",
+              "showSubcategory": false,
+              "bannerWithProduct": false,
+              "defaultShowProduct": false,
+              "products": [],
+              "category": "22",
+              "padding": 0.0
+            }
+          ],
+          "marginBottom": 10.0,
+          "height": 0.45,
+          "marginRight": null,
+          "marginTop": 10.0,
+          "enableParallax": false,
+          "parallaxImageRatio": 1.2,
+          "isHorizontal": false,
+          "parallax": false,
+          "key": "p2oq4zc4hg"
+        },
+        "alwaysShowUponOpen": true,
+        "closePosition": "topRight",
+        "updatedTime": 1661314494281
+      },
+      "flexible": {
+        "enable": false,
+        "data": {
+          "alignment": "topCenter",
+          "marginTop": 0.0,
+          "marginBottom": 0.0,
+          "items": [
+            {
+              "image": "https://assets9.lottiefiles.com/private_files/lf30_a4mKwA.json",
+              "width": 100.0,
+              "height": 80.0,
+              "borderRadius": 2.0,
+              "marginLeft": 0.0,
+              "marginRight": 0.0,
+              "textFontSize": 14.0,
+              "useMaxWidth": true,
+              "navigator": {
+                "showSubcategory": false,
+                "coupon": "blackf"
+              }
+            }
+          ],
+          "layout": "button"
+        },
+        "canDrag": true,
+        "canClose": true,
+        "width": 100.0,
+        "height": 100.0
+      },
+      "sticky": {
+        "enable": false,
+        "data": {
+          "layout": "bannerImage",
+          "design": "static",
+          "fit": "fitWidth",
+          "marginLeft": 10.0,
+          "items": [
+            {
+              "image": "https://i.imgur.com/LUaEM3v.jpeg",
+              "showSubcategory": false,
+              "bannerWithProduct": false,
+              "defaultShowProduct": false,
+              "products": [],
+              "coupon": "halfprice",
+              "padding": 0.0,
+              "radius": 9.0
+            }
+          ],
+          "marginBottom": 10.0,
+          "marginRight": 10.0,
+          "marginTop": 10.0,
+          "height": 0.2,
+          "enableParallax": false,
+          "parallaxImageRatio": 1.2,
+          "isHorizontal": false,
+          "parallax": false,
+          "key": "ga8oe39k5t"
+        }
+      }
+    }
+  },
+  "TabBar": [
+    {
+      "layout": "home",
+      "icon": "assets/icons/tabs/icon-home.png"
+    },
+    {
+      "layout": "map",
+      "icon": "assets/icons/tabs/icon-category.png"
+    },
+    {
+      "layout": "category",
+      "categoryLayout": "card",
+      "icon": "assets/icons/tabs/icon-columns.png"
+    },
+    {
+      "layout": "wishlist",
+      "icon": "assets/icons/tabs/icon-heartthin.png"
+    },
+    {
+      "layout": "profile",
+      "icon": "assets/icons/tabs/icon-user.png",
+      "showChat": true,
+      "showBackground": true,
+      "styleItem": "listTile",
+      "settingStyle": "normal"
+    }
+  ],
+  "searchSuggestion": [
+    "Restaurants",
+    "Doctors",
+    "Plumber",
+    "Real Estate",
+    "Hotels",
+    "Gym",
+    "Car Repair",
+    "Salon",
+    "Events",
+    "Lawyers"
+  ],
+  "PrivacyPoliciesPageUrlOrId": "https://zipbiz.in/privacy-policy/",
+  "MetaSeo": {
+    "app": {
+      "excludes": [
+        "checkout"
+      ],
+      "config": {
+        "author": "ZipBiz",
+        "description": "ZipBiz - Discover Top Local Businesses, Services, and Places in Your City",
+        "keywords": [
+          "ZipBiz",
+          "Directory",
+          "Local Businesses",
+          "Services",
+          "Restaurants",
+          "Real Estate",
+          "India"
+        ]
+      }
+    },
+    "routes": [
+      {
+        "route": "dashboard",
+        "config": {
+          "author": "ZipBiz",
+          "description": "ZipBiz - Discover Top Local Businesses, Services, and Places in Your City",
+          "keywords": [
+            "ZipBiz",
+            "Directory",
+            "Local Businesses",
+            "Services"
+          ]
+        }
+      }
+    ]
+  },
+  "overrideTranslation": {
+    "@@locale": "en",
+    "copyright": "Copyright © 2026 ZipBiz. All rights reserved."
+  }
+}

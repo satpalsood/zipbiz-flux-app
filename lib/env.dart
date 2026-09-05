@@ -1707,22 +1707,25 @@ Map<String, dynamic> environment = {
   },
 
   /// ➡️ lib/common/loading.dart
-  "loadingIcon": {"size": 30.0, "type": "fadingCube"},
+  "lightConfig": {
+    "MainColor": "#FF6B00",
+    "primaryColorLight": "#FFDBCC",
+    "backgroundColor": "#FBF9F8",
+    "secondaryColor": "#6B4EA4",
+    "textColor": "#1B1C1C",
+    "saleColor": "#D32F2F"
+  },
   "splashScreen": {
     "enable": true,
 
     /// duration in milliseconds, used for all types except "rive" and "flare"
     "duration": 2000,
 
-    ///  Type should be: 'fade-in', 'zoom-in', 'zoom-out', 'top-down', 'rive', 'flare', ''static'
-    "type": "flare",
-    "image": "assets/images/splashscreen.flr",
-
-    /// AnimationName's is used for 'rive' and 'flare' type
-    "animationName": "fluxstore",
-
+    ///  Type should be: 'fade-in', 'zoom-in', 'zoom-out', 'top-down', 'rive', 'flare', 'static'
+    "type": "static",
+    "image": "assets/images/splashscreen.png",
     "boxFit": "contain",
-    "backgroundColor": "#ffffff",
+    "backgroundColor": "#FBF9F8",
     "paddingTop": 0,
     "paddingBottom": 0,
     "paddingLeft": 0,

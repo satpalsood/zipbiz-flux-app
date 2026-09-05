@@ -42,6 +42,7 @@ class RouteList {
   static const String orders = 'orders';
   static const String orderDetail = 'order-detail';
   static const String orderdSuccess = 'ordered-success';
+  static const String bookingHistory = 'booking-history';
 
   // Notify
   static const String notify = 'notify';

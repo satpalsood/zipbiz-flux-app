@@ -28,6 +28,8 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
   TextEditingController? textController;
   FocusNode? _focus;
   String? searchText;
+  String _selectedFilter = 'all';
+  String _selectedRegion = 'Mohali / Chandigarh';
 
   late Animation<double> animation;
   late AnimationController controller;
@@ -164,64 +166,168 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
                 return LayoutBuilder(builder:
                     (BuildContext context, BoxConstraints viewportConstraints) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 15.0),
+                    padding: const EdgeInsets.symmetric(vertical: 10.0),
                     child: Column(
                       children: <Widget>[
-                        Row(children: [
-                          /// SearchBar
-                          Expanded(
-                            child: Container(
-                              height: 40,
-                              decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surface,
-                                  borderRadius: BorderRadius.circular(20)),
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10),
-                              margin: const EdgeInsets.all(10.0),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.of(App.fluxStoreNavigatorKey
-                                          .currentContext!)
-                                      .pushNamed(RouteList.homeSearch);
-                                },
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: <Widget>[
-                                    Icon(
-                                      Icons.search,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .secondary,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: TextField(
-                                        controller: textController,
-                                        focusNode: _focus,
-                                        enabled: false,
-                                        decoration: InputDecoration(
-                                          fillColor: Theme.of(context)
-                                              .colorScheme
-                                              .secondary,
-                                          border: InputBorder.none,
-                                          hintText:
-                                              S.of(context).searchForItems,
-                                          focusColor: Theme.of(context)
-                                              .colorScheme
-                                              .secondary,
+                        // 1. Region Selector Capsule
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 4.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.4)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.between,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.my_location, size: 18, color: Theme.of(context).primaryColor),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Service Area',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500,
+                                          color: Theme.of(context).colorScheme.secondary,
                                         ),
+                                      ),
+                                      Text(
+                                        _selectedRegion,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6B4EA4).withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF2E7D32),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    const Text(
+                                      'Active Pros',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF6B4EA4),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
+                            ],
                           ),
+                        ),
 
-                          const SizedBox(
-                            width: 5,
-                          )
-                        ]),
+                        // 2. Search Input & Search Action Button
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).cardColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.4)),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: InkWell(
+                                    onTap: () {
+                                      Navigator.of(App.fluxStoreNavigatorKey.currentContext!)
+                                          .pushNamed(RouteList.homeSearch);
+                                    },
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: <Widget>[
+                                        Icon(
+                                          Icons.search,
+                                          size: 20,
+                                          color: Theme.of(context).colorScheme.secondary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Expanded(
+                                          child: Text(
+                                            'Search Electrician, Plumber, Cleaner...',
+                                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.mic_none,
+                                          size: 18,
+                                          color: Theme.of(context).colorScheme.secondary,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                height: 44,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.of(App.fluxStoreNavigatorKey.currentContext!)
+                                        .pushNamed(RouteList.homeSearch);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Theme.of(context).primaryColor,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  child: const Text(
+                                    'Search',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // 3. Filter Category Pills
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 4.0),
+                          child: Row(
+                            children: [
+                              _buildPill('All Services', 'all', Icons.grid_view),
+                              const SizedBox(width: 8),
+                              _buildPill('Most Booked', 'booked', Icons.local_fire_department),
+                              const SizedBox(width: 8),
+                              _buildPill('Quickest 15m', 'quick', Icons.bolt),
+                              const SizedBox(width: 8),
+                              _buildPill('Emergency', 'emergency', Icons.emergency_outlined),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+
                         Expanded(
                           child: renderDefault(context, viewportConstraints),
                         ),
@@ -232,6 +338,41 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
               },
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPill(String label, String key, IconData icon) {
+    final isSelected = _selectedFilter == key;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = key),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF6B4EA4) : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF6B4EA4) : Theme.of(context).dividerColor.withOpacity(0.4),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : Theme.of(context).primaryColor,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
       ),
     );

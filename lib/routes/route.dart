@@ -46,6 +46,8 @@ import '../screens/settings/biometrics_screen.dart';
 import '../screens/settings/branches_screen.dart';
 import '../screens/subcategories/models/subcategory_model.dart';
 import '../screens/videos/videos_screen.dart';
+import '../frameworks/listing/screens/booking_history/booking_history_screen.dart';
+import '../screens/chat/chat_screen.dart';
 import '../services/index.dart';
 import '../services/outside/index.dart';
 
@@ -84,6 +86,7 @@ class Routes {
     RouteList.multiSiteSelection: (context) =>
         MultiSiteFactory.multiSiteSelectionScreen(context),
     RouteList.branchSelecter: (context) => const BranchesScreen(),
+    RouteList.bookingHistory: (context) => const BookingHistoryScreen(),
     ...OutsideService.routes(),
     // AudioPlaylistScreen(audioService: injector.get()),
   };
@@ -458,6 +461,22 @@ class Routes {
           );
         }
         return _errorRoute();
+
+      case RouteList.bookingHistory:
+      case 'bookings':
+      case 'booking-history':
+        return _buildRoute(
+          settings,
+          (_) => const BookingHistoryScreen(),
+        );
+
+      case RouteList.listChat:
+      case 'chat':
+      case 'smartchat':
+        return _buildRoute(
+          settings,
+          (_) => const ChatScreen(),
+        );
       // No usage on this Route found
       // case RouteList.blog:
       //   final data = settings.arguments;

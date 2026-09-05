@@ -12,7 +12,7 @@
       "showSearch": true,
       "usePrimaryColor": false,
       "borderInput": true,
-      "title": "Search businesses, services & places...",
+      "title": "Search Electrician, Plumber, Cleaner...",
       "alignment": "centerLeft",
       "fontWeight": 0,
       "radius": 24.0,
@@ -41,15 +41,15 @@
       "height": 0.22,
       "items": [
         {
-          "image": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80",
+          "image": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&q=80",
           "padding": 16.0
         },
         {
-          "image": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80",
+          "image": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&q=80",
           "padding": 16.0
         },
         {
-          "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80",
+          "image": "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800&q=80",
           "padding": 16.0
         }
       ]
@@ -64,52 +64,52 @@
       "radius": 12.0,
       "items": [
         {
-          "category": "63",
+          "category": "65",
           "showText": true,
-          "name": "Eat & Drink",
-          "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=300&q=80"
+          "name": "Electrician",
+          "image": "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=300&q=80"
         },
         {
           "category": "65",
           "showText": true,
-          "name": "Services",
-          "image": "https://images.unsplash.com/photo-1521791136064-7986c2920216?w=300&q=80"
+          "name": "Plumber",
+          "image": "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=300&q=80"
         },
         {
-          "category": "64",
+          "category": "65",
           "showText": true,
-          "name": "Real Estate",
-          "image": "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=300&q=80"
+          "name": "Cleaner",
+          "image": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=300&q=80"
         },
         {
-          "category": "68",
+          "category": "65",
           "showText": true,
-          "name": "Fitness",
-          "image": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&q=80"
+          "name": "Home Salon",
+          "image": "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=300&q=80"
         },
         {
-          "category": "66",
+          "category": "65",
           "showText": true,
-          "name": "Events",
-          "image": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300&q=80"
+          "name": "Appliance",
+          "image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=300&q=80"
         },
         {
-          "category": "67",
+          "category": "65",
           "showText": true,
-          "name": "Shopping",
-          "image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=300&q=80"
+          "name": "Carpenter",
+          "image": "https://images.unsplash.com/photo-1530124566582-a618bc2615dc?w=300&q=80"
         },
         {
-          "category": "69",
+          "category": "65",
           "showText": true,
-          "name": "Automotive",
-          "image": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=300&q=80"
+          "name": "Maid",
+          "image": "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=300&q=80"
         },
         {
-          "category": "70",
+          "category": "65",
           "showText": true,
-          "name": "Hotels",
-          "image": "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&q=80"
+          "name": "Care Giver",
+          "image": "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=300&q=80"
         }
       ],
       "line": false,
@@ -139,7 +139,7 @@
     },
     {
       "layout": "bannerMap",
-      "title": "Explore Businesses Near You",
+      "title": "Explore Services Near You",
       "height": 150.0,
       "paddingHoz": 16.0,
       "paddingVer": 12.0,
@@ -147,12 +147,12 @@
       "radius": 14.0
     },
     {
-      "name": "Featured Businesses",
+      "name": "Popular Services",
       "layout": "twoColumn",
       "showHeart": true
     },
     {
-      "name": "Popular Places",
+      "name": "Popular Service Providers",
       "layout": "card",
       "showHeart": true
     },
@@ -162,9 +162,9 @@
     }
   ],
   "Setting": {
-    "MainColor": "#1E60FF",
-    "FontFamily": "Roboto",
-    "FontHeader": "Roboto",
+    "MainColor": "#FF6B00",
+    "FontFamily": "Hanken Grotesk",
+    "FontHeader": "Hanken Grotesk",
     "ProductListLayout": "list",
     "StickyHeader": false,
     "ShowChat": true,
@@ -283,24 +283,28 @@
   "TabBar": [
     {
       "layout": "home",
-      "icon": "assets/icons/tabs/icon-home.png"
+      "icon": "assets/icons/tabs/icon-home.png",
+      "label": "Home"
     },
     {
-      "layout": "map",
-      "icon": "assets/icons/tabs/icon-category.png"
+      "layout": "search",
+      "icon": "assets/icons/tabs/icon-lists.png",
+      "label": "Services"
     },
     {
-      "layout": "category",
-      "categoryLayout": "card",
-      "icon": "assets/icons/tabs/icon-columns.png"
+      "layout": "booking-history",
+      "icon": "assets/icons/tabs/icon-card.png",
+      "label": "Bookings"
     },
     {
-      "layout": "wishlist",
-      "icon": "assets/icons/tabs/icon-heartthin.png"
+      "layout": "chat",
+      "icon": "assets/icons/tabs/icon-videos.png",
+      "label": "Chat"
     },
     {
       "layout": "profile",
       "icon": "assets/icons/tabs/icon-user.png",
+      "label": "Account",
       "showChat": true,
       "showBackground": true,
       "styleItem": "listTile",

@@ -666,7 +666,7 @@ class ProductTitle extends StatelessWidget {
                 subtitle: 'Police checked crew',
               ),
               _GuaranteeCard(
-                icon: Icons.home_pin,
+                icon: Icons.pin_drop,
                 iconColor: Color(0xFF6B4EA4),
                 title: 'Address Verified',
                 subtitle: 'Registered facility',

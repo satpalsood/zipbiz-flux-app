@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flux_localization/flux_localization.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../common/constants.dart';
 import '../../../../common/tools/navigate_tools.dart';
 import '../../../../models/index.dart';
 import '../../../../routes/flux_navigate.dart';

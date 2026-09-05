@@ -1707,6 +1707,7 @@ Map<String, dynamic> environment = {
   },
 
   /// ➡️ lib/common/loading.dart
+  "loadingIcon": {"size": 30.0, "type": "fadingCube"},
   "lightConfig": {
     "MainColor": "#FF6B00",
     "primaryColorLight": "#FFDBCC",

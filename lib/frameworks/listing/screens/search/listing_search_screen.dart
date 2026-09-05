@@ -179,7 +179,7 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
                             border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.4)),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Row(
                                 children: [

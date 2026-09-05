@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flux_localization/flux_localization.dart';
+import 'package:flux_ui/flux_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../../common/constants.dart';
@@ -108,7 +109,9 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Consumer<BookingHistoryModel>(
                 builder: (context, bookingModel, _) {
                   return RefreshIndicator(
-                    onRefresh: () => bookingModel.getBooking(),
+                    onRefresh: () async {
+                      bookingModel.loadBooking(user.id);
+                    },
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -117,7 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         children: [
                           // Header Context
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,7 +393,7 @@ class _ChatScreenState extends State<ChatScreen> {
     ThemeData theme,
     BookingHistoryModel bookingModel,
   ) {
-    if (bookingModel.state == BookingHistoryModelState.loading) {
+    if (bookingModel.state == BookingHistoryState.loading) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 40.0),
@@ -404,7 +407,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_searchQuery.isNotEmpty) {
       bookings = bookings.where((b) {
         final title = (b.title ?? '').toLowerCase();
-        final id = (b.id ?? '').toLowerCase();
+        final id = (b.orderId ?? '').toLowerCase();
         final status = (b.status ?? '').toLowerCase();
         return title.contains(_searchQuery) || id.contains(_searchQuery) || status.contains(_searchQuery);
       }).toList();
@@ -571,7 +574,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: Text(
                               booking.title?.isNotEmpty ?? false
                                   ? booking.title!
-                                  : 'Service Booking #${booking.id}',
+                                  : 'Service Booking #${booking.orderId}',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -600,14 +603,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           Icon(Icons.calendar_today_outlined, size: 12, color: theme.colorScheme.secondary),
                           const SizedBox(width: 4),
                           Text(
-                            booking.created ?? 'Recent appointment',
+                            booking.createdDate ?? 'Recent appointment',
                             style: TextStyle(fontSize: 11, color: theme.colorScheme.secondary),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Booking #${booking.id} • Connect with technician regarding schedule or service details',
+                        'Booking #${booking.orderId} • Connect with technician regarding schedule or service details',
                         style: const TextStyle(fontSize: 12, color: Colors.black87),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

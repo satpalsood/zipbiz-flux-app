@@ -90,9 +90,11 @@ class TabBarIcon extends StatelessWidget {
     }
 
     return Tab(
-      text: item.label,
       iconMargin: EdgeInsets.zero,
-      icon: icon,
+      icon: Semantics(
+        label: item.label,
+        child: icon,
+      ),
     );
   }
 }

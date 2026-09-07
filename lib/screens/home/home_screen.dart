@@ -10,6 +10,7 @@ import '../../models/app_model.dart';
 import '../../modules/dynamic_layout/index.dart';
 import '../../widgets/home/index.dart';
 import '../base_screen.dart';
+import 'zipbiz_home_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({this.scrollController});
@@ -80,12 +81,7 @@ class _HomeScreenState extends BaseScreen<HomeScreen> {
                         child: HomeBackground(config: appConfig.background),
                       )
                     : HomeBackground(config: appConfig.background),
-              HomeLayout(
-                isPinAppBar: isStickyHeader,
-                isShowAppbar: isShowAppbar,
-                showNewAppBar:
-                    appConfig.appBar?.shouldShowOn(RouteList.home) ?? false,
-                configs: appConfig.jsonData,
+              ZipBizHomeView(
                 key: Key('$langCode$countryCode'),
                 scrollController: widget.scrollController,
               ),

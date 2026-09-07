@@ -10,6 +10,7 @@ import '../../models/entities/listing_booking.dart';
 import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
 import '../../services/services.dart';
+import '../../widgets/common/zipbiz_header.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -37,71 +38,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        backgroundColor: theme.colorScheme.surface,
-        elevation: 0.5,
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/images/logo.png',
-              height: 28,
-              errorBuilder: (_, __, ___) => const Icon(Icons.business),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'ZipBiz',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: theme.primaryColor,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 13,
-                      color: theme.primaryColor,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      'Mohali / Chandigarh',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.secondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none_outlined),
-            onPressed: () => FluxNavigate.pushNamed(RouteList.notify, context: context),
-          ),
-          if (user != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: CircleAvatar(
-                radius: 14,
-                backgroundColor: theme.primaryColor.withOpacity(0.15),
-                child: Text(
-                  (user.name?.isNotEmpty ?? false) ? user.name![0].toUpperCase() : 'U',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: theme.primaryColor),
-                ),
-              ),
-            ),
-        ],
-      ),
+      appBar: const ZipBizTopHeader(showBackButton: true),
       body: user == null
           ? _buildUnauthenticatedView(context, theme)
           : ChangeNotifierProvider<BookingHistoryModel>(

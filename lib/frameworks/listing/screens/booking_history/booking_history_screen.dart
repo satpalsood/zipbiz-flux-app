@@ -10,6 +10,7 @@ import '../../../../models/entities/listing_booking.dart';
 import '../../../../models/index.dart';
 import '../../../../routes/flux_navigate.dart';
 import '../../../../screens/search/widgets/search_empty_result.dart';
+import '../../../../widgets/common/zipbiz_header.dart';
 import 'booking_history_model.dart';
 import 'widgets/booking_detail.dart';
 
@@ -91,22 +92,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
     if (user == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFFBF9F8),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF1B1C1C)),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-          title: const Text(
-            'My Bookings',
-            style: TextStyle(
-              color: Color(0xFF1B1C1C),
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-            ),
-          ),
-        ),
+        appBar: const ZipBizTopHeader(showBackButton: true),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -180,37 +166,34 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       create: (_) => BookingHistoryModel(userId),
       child: Scaffold(
         backgroundColor: const Color(0xFFFBF9F8),
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF1B1C1C)),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-          backgroundColor: Colors.white,
-          elevation: 0.5,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'My Bookings',
-                style: TextStyle(
-                  color: Color(0xFF1B1C1C),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 17,
-                ),
-              ),
-              Text(
-                'Track services, manage appointments & reviews',
-                style: TextStyle(
-                  color: const Color(0xFF1B1C1C).withOpacity(0.5),
-                  fontSize: 11,
-                  fontWeight: FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        ),
+        appBar: const ZipBizTopHeader(showBackButton: true),
         body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'My Bookings',
+                    style: TextStyle(
+                      color: Color(0xFF1B1C1C),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Track services, manage appointments & reviews',
+                    style: TextStyle(
+                      color: Color(0xFF7A7B7F),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             // Segmented Filter Bar
             Container(
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),

@@ -11,6 +11,7 @@ import '../../common/tools/navigate_tools.dart';
 import '../../frameworks/listing/screens/booking_history/booking_history_model.dart';
 import '../../models/index.dart';
 import '../../routes/flux_navigate.dart';
+import '../../widgets/common/zipbiz_header.dart';
 import 'layouts/setting_builder_layout.dart';
 
 class SettingScreen extends StatefulWidget {
@@ -53,74 +54,7 @@ class SettingScreenState extends State<SettingScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFBF9F8),
-        elevation: 0.5,
-        titleSpacing: 16,
-        automaticallyImplyLeading: false,
-        title: Row(
-          children: [
-            Image.network(
-              'https://zipbiz.in/wp-content/uploads/2025/06/zipbizlogo.png',
-              height: 32,
-              errorBuilder: (_, __, ___) => const Text(
-                'ZipBiz',
-                style: TextStyle(
-                  color: Color(0xFFFF6B00),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0EDED),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE4E2E1)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.location_on, size: 14, color: Color(0xFFFF6B00)),
-                  SizedBox(width: 4),
-                  Text(
-                    'Mohali / Chandigarh',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1B1C1C),
-                    ),
-                  ),
-                  Icon(Icons.expand_more, size: 14, color: Color(0xFF5A4136)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(Icons.notifications_none, color: Color(0xFF5A4136)),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: CircleAvatar(
-                    radius: 4,
-                    backgroundColor: Color(0xFFFF6B00),
-                  ),
-                ),
-              ],
-            ),
-            onPressed: () =>
-                FluxNavigate.pushNamed(RouteList.notify, context: context),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      appBar: const ZipBizTopHeader(),
       body: Consumer<UserModel>(
         builder: (context, userModel, _) {
           final user = userModel.user;
@@ -789,8 +723,8 @@ class SettingScreenState extends State<SettingScreen>
           const SizedBox(width: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              'https://zipbiz.in/wp-content/uploads/2025/06/zipbizlogo.png',
+            child: Image.asset(
+              'assets/images/logo.png',
               width: 60,
               height: 60,
               fit: BoxFit.contain,

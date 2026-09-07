@@ -10,6 +10,7 @@ import '../../../../common/constants.dart';
 import '../../../../models/index.dart';
 import '../../../../routes/flux_navigate.dart';
 import '../../../../screens/common/app_bar_mixin.dart';
+import '../../../../widgets/common/zipbiz_header.dart';
 import '../../widgets/category_horizon.dart';
 import '../../widgets/recent_list.dart';
 import '../map/map_screen.dart';
@@ -129,7 +130,8 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
 
     return renderScaffold(
       routeName: RouteList.search,
-      secondAppBar: renderAppBar(),
+      disableSafeArea: true,
+      secondAppBar: null,
       floatingActionButton: FloatingActionButton(
         heroTag: 'location',
         backgroundColor: Theme.of(context).primaryColor,
@@ -158,8 +160,11 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
       ),
       child: Container(
         color: Theme.of(context).colorScheme.surface,
-        child: SafeArea(
-          child: ListenableProvider<SearchModel>.value(
+        child: Column(
+          children: [
+            ZipBizTopHeader(showBackButton: Navigator.canPop(context)),
+            Expanded(
+              child: ListenableProvider<SearchModel>.value(
             value: search,
             child: Consumer<SearchModel>(
               builder: (context, value, child) {
@@ -338,6 +343,8 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
               },
             ),
           ),
+        ),
+          ],
         ),
       ),
     );

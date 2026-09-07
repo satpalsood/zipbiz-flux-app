@@ -1303,10 +1303,36 @@ class _TabBarState extends State<TabBar> {
 
       /// InspireUI Customize
       if (!widget.isScrollable) {
+        int lastVisibleIndex = -1;
+        for (int k = widget.tabs.length - 1; k >= 0; k--) {
+          if (widget.tabs[k].runtimeType.toString() != 'SizedBox') {
+            lastVisibleIndex = k;
+            break;
+          }
+        }
+        final isLastVisible = index == lastVisibleIndex;
+        final dividerColor = Theme.of(context).brightness == Brightness.dark
+            ? Colors.white.withOpacity(0.12)
+            : const Color(0xFFE4E2E1);
+
         wrappedTabs[index] =
             widget.tabs[index].runtimeType.toString() == 'SizedBox'
                 ? SizedBox(width: 0, child: wrappedTabs[index])
-                : Expanded(child: wrappedTabs[index]);
+                : Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: isLastVisible
+                            ? null
+                            : Border(
+                                right: BorderSide(
+                                  color: dividerColor,
+                                  width: 0.5,
+                                ),
+                              ),
+                      ),
+                      child: wrappedTabs[index],
+                    ),
+                  );
       }
     }
 

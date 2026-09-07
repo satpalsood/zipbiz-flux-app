@@ -1699,7 +1699,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         'desc': 'Zero diagnosis charges on first service',
         'cta': 'Book Check',
         'gradient': const [Color(0xFF1D4ED8), Color(0xFF06B6D4)],
-        'icon': Icons.mode_fan,
+        'icon': Icons.ac_unit,
       },
       {
         'badge': 'TRUST & QUALITY',

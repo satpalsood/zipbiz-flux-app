@@ -48,6 +48,13 @@ import '../screens/subcategories/models/subcategory_model.dart';
 import '../screens/videos/videos_screen.dart';
 import '../frameworks/listing/screens/booking_history/booking_history_screen.dart';
 import '../screens/chat/chat_screen.dart';
+import '../screens/booking/zipbiz_booking_flow_screen.dart';
+import '../screens/bookings/zipbiz_bookings_dashboard_screen.dart';
+import '../screens/chat/zipbiz_chat_screen.dart';
+import '../screens/listing_detail/zipbiz_provider_detail_screen.dart';
+import '../screens/profile/zipbiz_profile_screen.dart';
+import '../screens/services/zipbiz_services_directory_screen.dart';
+import '../vendor/dashboard/zipbiz_vendor_dashboard_screen.dart';
 import '../services/index.dart';
 import '../services/outside/index.dart';
 
@@ -80,13 +87,15 @@ class Routes {
     RouteList.language: (context) => LanguageScreen(),
     RouteList.currencies: (context) => CurrenciesScreen(),
     RouteList.biometrics: (context) => BiometricsScreen(),
-    RouteList.category: (context) => const CategoriesScreen(),
+    RouteList.category: (context) => const ZipBizServicesDirectoryScreen(),
     RouteList.audioPlaylist: (context) =>
         Services().renderAudioPlaylistScreen(),
     RouteList.multiSiteSelection: (context) =>
         MultiSiteFactory.multiSiteSelectionScreen(context),
     RouteList.branchSelecter: (context) => const BranchesScreen(),
-    RouteList.bookingHistory: (context) => const BookingHistoryScreen(),
+    RouteList.bookingHistory: (context) => const ZipBizBookingsDashboardScreen(),
+    RouteList.chat: (context) => const ZipBizChatScreen(),
+    RouteList.profile: (context) => const ZipBizProfileScreen(),
     ...OutsideService.routes(),
     // AudioPlaylistScreen(audioService: injector.get()),
   };
@@ -340,7 +349,7 @@ class Routes {
           product = settings.arguments as Product?;
           return _buildRoute(
             settings,
-            (_) => ProductDetailScreen(product: product, id: product!.id),
+            (_) => ZipBizProviderDetailScreen(product: product!),
           );
         }
 
@@ -354,25 +363,9 @@ class Routes {
         }
         return _errorRoute();
       case RouteList.category:
-        final data = settings.arguments;
-        if (data is TabBarMenuConfig) {
-          return _buildRoute(
-            settings,
-            (_) => CategoriesScreen(
-              key: const Key('category'),
-              showSearch: data.jsonData['showSearch'] ?? true,
-              enableParallax: data.jsonData['parallax'] ?? false,
-              parallaxImageRatio:
-                  Tools.formatDouble(data.jsonData['parallaxImageRatio']),
-            ),
-          );
-        }
         return _buildRoute(
           settings,
-          (_) => const CategoriesScreen(
-            key: Key('category'),
-            showSearch: true,
-          ),
+          (_) => const ZipBizServicesDirectoryScreen(),
         );
       case RouteList.categorySearch:
         return _buildRouteFade(
@@ -444,30 +437,17 @@ class Routes {
         );
 
       case RouteList.profile:
-        final data = settings.arguments;
-        if (data is TabBarMenuConfig) {
-          return _buildRoute(
-            settings,
-            (_) => SettingScreen(
-              settings: data.jsonData['settings'],
-              subGeneralSetting: data.jsonData['subGeneralSetting'],
-              background: data.jsonData['background'],
-              drawerIcon: data.jsonData['drawerIcon'],
-              showBackground: data.jsonData['showBackground'],
-              cardStyle: data.jsonData['styleItem'],
-              settingStyle: data.jsonData['settingStyle'],
-              hideUser: data.jsonData['hideUser'] ?? false,
-            ),
-          );
-        }
-        return _errorRoute();
+        return _buildRoute(
+          settings,
+          (_) => const ZipBizProfileScreen(),
+        );
 
       case RouteList.bookingHistory:
       case 'bookings':
       case 'booking-history':
         return _buildRoute(
           settings,
-          (_) => const BookingHistoryScreen(),
+          (_) => const ZipBizBookingsDashboardScreen(),
         );
 
       case RouteList.listChat:
@@ -475,7 +455,7 @@ class Routes {
       case 'smartchat':
         return _buildRoute(
           settings,
-          (_) => const ChatScreen(),
+          (_) => const ZipBizChatScreen(),
         );
       // No usage on this Route found
       // case RouteList.blog:

@@ -1,10 +1,7 @@
 name: Build Android APK
 
+# Manual trigger only (automatic builds disabled during web development)
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:

@@ -39,8 +39,8 @@ jobs:
       - name: Get Flutter Packages
         run: flutter pub get
 
-      - name: Build Flutter Web (CanvasKit)
-        run: flutter build web --release --base-href "/zipbiz-flux-app/" --web-renderer canvaskit
+      - name: Build Flutter Web
+        run: flutter build web --release --base-href "/zipbiz-flux-app/"
 
       - name: Upload Web Build Artifact
         uses: actions/upload-artifact@v4

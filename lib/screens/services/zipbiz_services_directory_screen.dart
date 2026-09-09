@@ -215,7 +215,7 @@ class _ZipBizServicesDirectoryScreenState
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.between,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,10 +228,10 @@ class _ZipBizServicesDirectoryScreenState
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: ZipBizColors.secondaryFixed,
-                        borderRadius: BorderRadius.circular(6),
+                        color: ZipBizColors.primaryFixed,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text('10 Categories', style: ZipBizTypography.labelSmall.copyWith(color: ZipBizColors.onSecondaryFixedVariant)),
+                      child: Text('All Types', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ZipBizColors.onPrimaryFixedVariant)),
                     ),
                   ],
                 ),
@@ -327,7 +327,7 @@ class _ZipBizServicesDirectoryScreenState
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.between,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('Available Services', style: ZipBizTypography.headlineSmall),
                     Text('${_services.length} Listed', style: ZipBizTypography.labelMedium),
@@ -466,7 +466,7 @@ class _ZipBizServicesDirectoryScreenState
                     const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
                     const SizedBox(width: 3),
                     Text(
-                      '${product.rating ?? 4.9} (${product.totalReview ?? 12})',
+                      '${product.averageRating ?? 4.9} (${product.totalReview ?? 12})',
                       style: ZipBizTypography.labelSmall.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(width: 8),
@@ -479,7 +479,7 @@ class _ZipBizServicesDirectoryScreenState
                 ),
                 const SizedBox(height: 8),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.between,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

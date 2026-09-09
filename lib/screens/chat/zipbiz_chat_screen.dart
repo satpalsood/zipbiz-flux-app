@@ -110,7 +110,7 @@ class _ZipBizChatScreenState extends State<ZipBizChatScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,7 +281,7 @@ class _ZipBizChatScreenState extends State<ZipBizChatScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.between,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Row(
                                     children: [

@@ -178,7 +178,7 @@ class _ZipBizVendorDashboardScreenState
 
               // Incoming / Active Bookings Section
               Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Incoming Job Requests', style: ZipBizTypography.headlineSmall),
                   Text('${_bookings.length} Total', style: ZipBizTypography.labelSmall),
@@ -278,7 +278,7 @@ class _ZipBizVendorDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

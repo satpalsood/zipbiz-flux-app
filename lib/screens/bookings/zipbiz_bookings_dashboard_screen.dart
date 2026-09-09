@@ -141,7 +141,7 @@ class _ZipBizBookingsDashboardScreenState
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.between,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +240,7 @@ class _ZipBizBookingsDashboardScreenState
         children: [
           // Top Row: Status badge & Booking ID
           Row(
-            mainAxisAlignment: MainAxisAlignment.between,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -272,7 +272,7 @@ class _ZipBizBookingsDashboardScreenState
                   ],
                 ),
               ),
-              Text('#ZB-${booking.id}', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1)),
+              Text('#ZB-${booking.id ?? booking.orderId ?? ""}', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1)),
             ],
           ),
           const SizedBox(height: 10),
@@ -377,15 +377,16 @@ class _ZipBizBookingsDashboardScreenState
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel Appointment?'),
-        content: Text('Are you sure you want to cancel booking #ZB-${booking.id}? Cancellation is free before provider dispatch.'),
+        content: Text('Are you sure you want to cancel booking #ZB-${booking.id ?? booking.orderId ?? ""}? Cancellation is free before provider dispatch.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep Booking')),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
               final user = Provider.of<UserModel>(context, listen: false).user;
-              if (user != null && booking.id != null) {
-                await ZipBizApiService().cancelBooking(int.tryParse(booking.id!) ?? 0, user);
+              final bId = booking.id ?? booking.orderId;
+              if (user != null && bId != null) {
+                await ZipBizApiService().cancelBooking(int.tryParse(bId) ?? 0, user);
                 _loadBookings();
               }
             },

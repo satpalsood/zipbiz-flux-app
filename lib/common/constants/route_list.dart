@@ -93,6 +93,7 @@ class RouteList {
   static const String productSell = 'product-sell';
 
   static const String listChat = 'list-chat';
+  static const String chat = 'chat';
 
   static const String map = 'map';
 

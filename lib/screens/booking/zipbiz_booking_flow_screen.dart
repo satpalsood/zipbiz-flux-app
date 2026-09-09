@@ -309,7 +309,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                                 children: [
                                   Text(widget.product.name ?? 'Service', style: ZipBizTypography.labelLarge),
                                   const SizedBox(height: 2),
-                                  Text(widget.product.address ?? 'Mohali / Chandigarh', style: ZipBizTypography.bodySmall.copyWith(fontSize: 12)),
+                                  Text(widget.product.location ?? 'Mohali / Chandigarh', style: ZipBizTypography.bodySmall.copyWith(fontSize: 12)),
                                 ],
                               ),
                             ),
@@ -319,7 +319,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                         ...widget.selectedPackages.map((pkg) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 3),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Row(
                                 children: [
@@ -342,7 +342,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.between,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Select Service Date', style: ZipBizTypography.headlineSmall),
                         Text('Available daily', style: ZipBizTypography.labelSmall.copyWith(color: ZipBizColors.statusOpen)),
@@ -600,7 +600,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                       child: Column(
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('Items Total', style: ZipBizTypography.bodySmall),
                               Text('₹${widget.totalPrice.toStringAsFixed(0)}', style: ZipBizTypography.labelLarge),
@@ -608,7 +608,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                           ),
                           const SizedBox(height: 6),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('Platform & Insurance Fee (5%)', style: ZipBizTypography.bodySmall),
                               Text('₹${taxAndFee.toStringAsFixed(0)}', style: ZipBizTypography.labelLarge),
@@ -616,7 +616,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                           ),
                           const Divider(height: 16),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('Grand Total', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16)),
                               Text('₹${grandTotal.toStringAsFixed(0)}', style: ZipBizTypography.headlineSmall.copyWith(color: ZipBizColors.primary, fontWeight: FontWeight.bold)),

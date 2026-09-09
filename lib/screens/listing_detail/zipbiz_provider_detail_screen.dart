@@ -4,6 +4,8 @@ import '../../common/constants.dart';
 import '../../core/theme/zipbiz_colors.dart';
 import '../../core/theme/zipbiz_typography.dart';
 import '../../models/entities/product.dart';
+import '../../models/entities/menu_price.dart';
+import '../../models/entities/menu.dart';
 import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
 import '../../widgets/common/zipbiz_badge.dart';
@@ -36,21 +38,34 @@ class _ZipBizProviderDetailScreenState
   }
 
   void _initPackages() {
-    // Parse from Listeo _menu if available
     _packages = [];
-    if (widget.product.menu != null && widget.product.menu!.isNotEmpty) {
-      for (var group in widget.product.menu!) {
-        final elements = group['menu_elements'];
-        if (elements is List) {
-          for (var elem in elements) {
-            final name = elem['name']?.toString() ?? 'Service Package';
-            final price = double.tryParse('${elem['price']}') ?? 499.0;
+    final menuItems = widget.product.listingMenu;
+    if (menuItems != null && menuItems.isNotEmpty) {
+      for (var group in menuItems) {
+        if (group is ListingMenu) {
+          for (var elem in group.menu) {
+            final name = elem.name ?? 'Service Package';
+            final price = double.tryParse(elem.price ?? '499') ?? 499.0;
             _packages.add({
               'name': name,
               'price': price,
-              'description': elem['description']?.toString() ?? 'Complete expert service with verified tools',
+              'description': elem.description ?? 'Complete expert service with verified tools',
               'duration': '60 mins',
             });
+          }
+        } else if (group is Map) {
+          final elements = group['menu_elements'] ?? group['menu'];
+          if (elements is List) {
+            for (var elem in elements) {
+              final name = elem is Map ? (elem['name']?.toString() ?? 'Service Package') : 'Service Package';
+              final price = elem is Map ? (double.tryParse('${elem['price']}') ?? 499.0) : 499.0;
+              _packages.add({
+                'name': name,
+                'price': price,
+                'description': elem is Map ? (elem['description']?.toString() ?? 'Complete expert service with verified tools') : 'Complete expert service with verified tools',
+                'duration': '60 mins',
+              });
+            }
           }
         }
       }
@@ -234,7 +249,7 @@ class _ZipBizProviderDetailScreenState
                                       const SizedBox(width: 4),
                                       Expanded(
                                         child: Text(
-                                          p.address ?? 'Chandigarh, Mohali, Panchkula & Zirakpur',
+                                          p.location ?? 'Chandigarh, Mohali, Panchkula & Zirakpur',
                                           style: ZipBizTypography.bodySmall,
                                         ),
                                       ),
@@ -310,7 +325,7 @@ class _ZipBizProviderDetailScreenState
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.between,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Service Packages', style: ZipBizTypography.headlineSmall),
                       Text('Select to book', style: ZipBizTypography.labelMedium),

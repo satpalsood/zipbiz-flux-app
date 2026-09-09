@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../common/constants.dart';
 
 class ListingBooking {
+  String? id;
   String? title;
   String? featuredImage;
   String? status;
@@ -21,9 +22,11 @@ class ListingBooking {
       this.adults,
       this.services,
       this.orderId,
-      this.orderStatus);
+      this.orderStatus,
+      {this.id});
 
   ListingBooking.fromJson(Map json) {
+    id = json['id']?.toString() ?? json['order_id']?.toString();
     title = json['title'];
     if (json['featured_image'] is String) {
       featuredImage = json['featured_image'];

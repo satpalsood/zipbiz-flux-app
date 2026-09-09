@@ -164,6 +164,9 @@ class Product {
   List<String>? giftCardAmounts;
 
   bool get availableRating => averageRating != null && averageRating != 0.0;
+  String? get address => location;
+  double? get rating => averageRating;
+  List<dynamic>? get menu => listingMenu;
 
   String? get videoUrl => _videoUrl?.replaceAll('http://', 'https://');
 

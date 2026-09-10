@@ -18,7 +18,7 @@ class ZipBiz_REST_API {
         add_filter('rest_pre_serve_request', function($value) {
             header('Access-Control-Allow-Origin: *');
             header('Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE');
-            header('Access-Control-Allow-Headers: Authorization, Content-Type, User-Cookie, X-WP-Nonce, X-Requested-With');
+            header('Access-Control-Allow-Headers: Authorization, Content-Type, User-Cookie, X-User-ID, X-WP-Nonce, X-Requested-With');
             if (isset($_SERVER['REQUEST_METHOD']) && 'OPTIONS' === $_SERVER['REQUEST_METHOD']) {
                 status_header(200);
                 exit();

@@ -77,13 +77,13 @@ class ZipBiz_Vendor {
         register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/packages', array(
             'methods'  => 'GET',
             'callback' => array($this, 'get_packages'),
-            'permission_callback' => array($this, 'check_vendor_auth'),
+            'permission_callback' => array($this, 'check_auth'),
         ));
 
         register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/packages/select-free', array(
             'methods'  => 'POST',
             'callback' => array($this, 'select_free_package'),
-            'permission_callback' => array($this, 'check_vendor_auth'),
+            'permission_callback' => array($this, 'check_auth'),
         ));
 
         // Dynamic Form Fields Schema from website
@@ -153,21 +153,39 @@ class ZipBiz_Vendor {
         ));
     }
 
+    public function check_auth($request) {
+        $user = ZipBiz_REST_API::authenticate_user($request);
+        return (!is_wp_error($user) && $user && $user->ID > 0);
+    }
+
     public function check_vendor_auth($request) {
         $user = ZipBiz_REST_API::authenticate_user($request);
         if (is_wp_error($user) || !$user || !$user->ID) {
             return false;
         }
 
-        // Allow if role is owner, seller, administrator or has listings
+        // Allow if role is owner, seller, administrator, provider, or vendor
         $roles = (array)$user->roles;
-        if (in_array('owner', $roles) || in_array('seller', $roles) || in_array('administrator', $roles)) {
+        if (in_array('owner', $roles) || in_array('seller', $roles) || in_array('administrator', $roles) || in_array('provider', $roles) || in_array('vendor', $roles)) {
             return true;
         }
 
-        // Check if user has authored any listings
+        // Check if user has authored any listings or has an active user package
         $count = count_user_posts($user->ID, 'listing');
-        return ($count > 0);
+        if ($count > 0) {
+            return true;
+        }
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+            $has_pkg = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name WHERE user_id = %d", $user->ID));
+            if ($has_pkg > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -216,7 +234,7 @@ class ZipBiz_Vendor {
         }
 
         $ids_placeholder = implode(',', array_map('intval', $listing_ids));
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = ZipBiz_Bookings::get_bookings_table();
         $today = date('Y-m-d');
 
         $today_count = 0;
@@ -226,7 +244,7 @@ class ZipBiz_Vendor {
         $gross_earnings = 0;
 
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-            $today_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND date_start LIKE '$today%' AND status NOT IN ('cancelled', 'rejected')"));
+            $today_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND date_start LIKE '$today%' AND status NOT IN ('cancelled', 'rejected', 'expired')"));
             $pending_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status IN ('waiting', 'pending')"));
             $upcoming_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status = 'confirmed' AND date_start >= '$today'"));
             $completed_count = intval($wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status IN ('completed', 'finished')"));
@@ -288,7 +306,7 @@ class ZipBiz_Vendor {
         }
 
         $ids_placeholder = implode(',', array_map('intval', $listing_ids));
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = ZipBiz_Bookings::get_bookings_table();
         $status = sanitize_text_field($request->get_param('status') ?: 'all');
         $page = max(1, intval($request->get_param('page') ?: 1));
         $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
@@ -301,7 +319,7 @@ class ZipBiz_Vendor {
             } elseif ($status === 'completed') {
                 $where .= " AND status IN ('completed', 'finished')";
             } elseif ($status === 'cancelled') {
-                $where .= " AND status IN ('cancelled', 'rejected')";
+                $where .= " AND status IN ('cancelled', 'rejected', 'expired')";
             } else {
                 $where .= $wpdb->prepare(" AND status = %s", $status);
             }
@@ -324,7 +342,7 @@ class ZipBiz_Vendor {
                 'date_start'     => $r['date_start'],
                 'listing_id'     => intval($r['listing_id']),
                 'listing_title'  => $listing ? $listing->post_title : 'Service',
-                'listing_image'  => $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: '') : '',
+                'listing_image'  => $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: (get_post_meta($listing->ID, '_featured_image_url', true) ?: '')) : '',
                 'customer_id'    => intval($r['bookings_author']),
                 'customer_name'  => $comment_data['customer_name'] ?? ($customer ? $customer->display_name : 'Customer'),
                 'customer_phone' => $comment_data['customer_phone'] ?? ($customer ? get_user_meta($customer->ID, 'billing_phone', true) : ''),
@@ -345,7 +363,7 @@ class ZipBiz_Vendor {
      */
     private function update_booking_status($booking_id, $user_id, $new_status, $notify_title, $notify_msg) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = ZipBiz_Bookings::get_bookings_table();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $booking_id), ARRAY_A);
 
         if (!$row) {
@@ -357,7 +375,11 @@ class ZipBiz_Vendor {
             return ZipBiz_REST_API::error_response('FORBIDDEN', 'Access denied to this booking', 403);
         }
 
-        $wpdb->update($table_name, array('status' => $new_status), array('id' => $booking_id));
+        if (class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
+            Listeo_Core_Bookings_Calendar::set_booking_status($booking_id, $new_status);
+        } else {
+            $wpdb->update($table_name, array('status' => $new_status), array('id' => $booking_id));
+        }
 
         // Notify customer
         ZipBiz_Notifications::send_push_notification(
@@ -432,7 +454,7 @@ class ZipBiz_Vendor {
         }
 
         $ids_placeholder = implode(',', array_map('intval', $listing_ids));
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = ZipBiz_Bookings::get_bookings_table();
         $gross = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status IN ('completed', 'confirmed')"));
         $commission = round($gross * 0.10, 2);
         $refunds = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status = 'refunded'"));
@@ -499,6 +521,8 @@ class ZipBiz_Vendor {
                 'min_booking_value'     => get_post_meta($lid, '_min_booking_value', true) ?: '',
                 'booking_status'        => (get_post_meta($lid, '_booking_status', true) === 'on'),
                 'slots_status'          => (get_post_meta($lid, '_slots_status', true) === 'on'),
+                'slots'                 => get_post_meta($lid, '_slots', true) ?: array(),
+                '_slots'                => get_post_meta($lid, '_slots', true) ?: array(),
                 'slot_limit'            => get_post_meta($lid, '_slot_limit', true) ?: '3',
                 'slot_interval'         => get_post_meta($lid, '_slot_interval', true) ?: '2',
                 'featured_image'        => $img_url,
@@ -531,28 +555,42 @@ class ZipBiz_Vendor {
 
         // 1. Subscription Package Validation & Allocation
         global $wpdb;
-        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
+        $table_name = $this->ensure_user_packages_table();
         $user_package_id = 0;
+        $req_pkg_id = isset($params['package_id']) ? intval($params['package_id']) : 0;
 
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-            $user_package = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM $table_name WHERE user_id = %d AND (package_count < package_limit OR package_limit = 0) ORDER BY id DESC LIMIT 1",
-                $user->ID
-            ), ARRAY_A);
+            $user_package = null;
+            if ($req_pkg_id > 0) {
+                $user_package = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM $table_name WHERE user_id = %d AND product_id = %d AND (package_count < package_limit OR package_limit = 0) ORDER BY id DESC LIMIT 1",
+                    $user->ID, $req_pkg_id
+                ), ARRAY_A);
+            }
+            if (!$user_package) {
+                $user_package = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM $table_name WHERE user_id = %d AND (package_count < package_limit OR package_limit = 0) ORDER BY id DESC LIMIT 1",
+                    $user->ID
+                ), ARRAY_A);
+            }
 
             if ($user_package) {
                 $user_package_id = intval($user_package['id']);
             } else {
-                // If vendor has 0 listings, auto-assign Silver plan
+                // If vendor has 0 listings or requested Silver plan, auto-assign Silver plan
                 $current_count = count($this->get_vendor_listing_ids($user->ID));
-                if ($current_count == 0) {
+                if ($current_count == 0 || $req_pkg_id == 1001) {
                     $wpdb->insert($table_name, array(
                         'user_id'          => $user->ID,
-                        'product_id'       => 1001,
+                        'product_id'       => $req_pkg_id ?: 1001,
                         'order_id'         => 0,
                         'package_count'    => 0,
                         'package_duration' => 365,
                         'package_limit'    => 1,
+                        'package_featured' => 0,
+                        'package_option_booking' => 1,
+                        'package_option_reviews' => 1,
+                        'package_option_gallery' => 1,
                     ));
                     $user_package_id = $wpdb->insert_id;
                 } else {
@@ -668,26 +706,58 @@ class ZipBiz_Vendor {
         }
         if (isset($params['price'])) {
             update_post_meta($listing_id, '_price_min', sanitize_text_field($params['price']));
+            update_post_meta($listing_id, 'price_min', sanitize_text_field($params['price']));
         }
         if (isset($params['visiting_fee'])) {
-            update_post_meta($listing_id, '_visiting_fee', sanitize_text_field($params['visiting_fee']));
+            $vf = sanitize_text_field($params['visiting_fee']);
+            update_post_meta($listing_id, '_visiting_fee', $vf);
+            update_post_meta($listing_id, 'visiting_fee', $vf);
+            update_post_meta($listing_id, '_visiting_charges', $vf);
+            update_post_meta($listing_id, 'visiting_charges', $vf);
+            update_post_meta($listing_id, '_visiting_charge', $vf);
+            update_post_meta($listing_id, 'visiting_charge', $vf);
         }
         if (isset($params['additional_fee_label'])) {
-            update_post_meta($listing_id, '_additional_fee_label', sanitize_text_field($params['additional_fee_label']));
+            $afl = sanitize_text_field($params['additional_fee_label']);
+            update_post_meta($listing_id, '_additional_fee_label', $afl);
+            update_post_meta($listing_id, 'additional_fee_label', $afl);
         }
         if (isset($params['additional_fee_amount'])) {
-            update_post_meta($listing_id, '_additional_fee_amount', sanitize_text_field($params['additional_fee_amount']));
+            $afa = sanitize_text_field($params['additional_fee_amount']);
+            update_post_meta($listing_id, '_additional_fee_amount', $afa);
+            update_post_meta($listing_id, 'additional_fee_amount', $afa);
         }
         if (isset($params['inspection_fee'])) {
-            update_post_meta($listing_id, '_inspection_fee', sanitize_text_field($params['inspection_fee']));
+            $inf = sanitize_text_field($params['inspection_fee']);
+            update_post_meta($listing_id, '_inspection_fee', $inf);
+            update_post_meta($listing_id, 'inspection_fee', $inf);
         }
 
         // Toggles
         $booking_status = !empty($params['booking_status']) ? 'on' : 'off';
         update_post_meta($listing_id, '_booking_status', $booking_status);
+        update_post_meta($listing_id, 'booking_status', $booking_status);
 
         $slots_status = !empty($params['slots_status']) ? 'on' : 'off';
         update_post_meta($listing_id, '_slots_status', $slots_status);
+        update_post_meta($listing_id, 'slots_status', $slots_status);
+
+        if (isset($params['slots'])) {
+            $slots = $params['slots'];
+            $slots_json = is_string($slots) ? $slots : json_encode($slots);
+            update_post_meta($listing_id, '_slots', $slots_json);
+            update_post_meta($listing_id, 'slots', $slots_json);
+            update_post_meta($listing_id, '_slots_status', 'on');
+            update_post_meta($listing_id, 'slots_status', 'on');
+            update_post_meta($listing_id, '_booking_status', 'on');
+            update_post_meta($listing_id, 'booking_status', 'on');
+        }
+
+        if (isset($params['min_booking_value'])) {
+            $mbv = sanitize_text_field($params['min_booking_value']);
+            update_post_meta($listing_id, '_min_booking_value', $mbv);
+            update_post_meta($listing_id, 'min_booking_value', $mbv);
+        }
 
         if (isset($params['slot_limit'])) {
             update_post_meta($listing_id, '_slot_limit', intval($params['slot_limit']));
@@ -696,26 +766,62 @@ class ZipBiz_Vendor {
             update_post_meta($listing_id, '_slot_interval', sanitize_text_field($params['slot_interval']));
         }
 
-        // Menu / Bookable Services
+        // Menu / Bookable Services (Handles both nested groups and flat elements)
         if (isset($params['menu']) && is_array($params['menu'])) {
-            $menu_elements = array();
-            foreach ($params['menu'] as $elem) {
-                if (!empty($elem['name'])) {
-                    $menu_elements[] = array(
-                        'name'        => sanitize_text_field($elem['name']),
-                        'price'       => sanitize_text_field($elem['price'] ?? '0'),
-                        'description' => sanitize_text_field($elem['description'] ?? ''),
-                        'bookable'    => (!empty($elem['bookable']) && $elem['bookable'] !== 'off') ? 'on' : 'off',
+            $structured_menu = array();
+            $first_item = reset($params['menu']);
+
+            if (is_array($first_item) && isset($first_item['menu_elements']) && is_array($first_item['menu_elements'])) {
+                // Grouped sections format from Listeo / Flutter
+                foreach ($params['menu'] as $section) {
+                    $sec_title = sanitize_text_field($section['menu_title'] ?? 'Services');
+                    $elems = array();
+                    if (!empty($section['menu_elements']) && is_array($section['menu_elements'])) {
+                        foreach ($section['menu_elements'] as $elem) {
+                            if (!empty($elem['name'])) {
+                                $elems[] = array(
+                                    'name'        => sanitize_text_field($elem['name']),
+                                    'price'       => sanitize_text_field($elem['price'] ?? '0'),
+                                    'description' => sanitize_text_field($elem['description'] ?? ''),
+                                    'bookable'    => (!empty($elem['bookable']) && $elem['bookable'] !== 'off') ? 'on' : 'off',
+                                );
+                            }
+                        }
+                    }
+                    if (!empty($elems)) {
+                        $structured_menu[] = array(
+                            'menu_title'    => $sec_title,
+                            'menu_elements' => $elems,
+                        );
+                    }
+                }
+            } else {
+                // Flat elements format
+                $elems = array();
+                foreach ($params['menu'] as $elem) {
+                    if (!empty($elem['name'])) {
+                        $elems[] = array(
+                            'name'        => sanitize_text_field($elem['name']),
+                            'price'       => sanitize_text_field($elem['price'] ?? '0'),
+                            'description' => sanitize_text_field($elem['description'] ?? ''),
+                            'bookable'    => (!empty($elem['bookable']) && $elem['bookable'] !== 'off') ? 'on' : 'off',
+                        );
+                    }
+                }
+                if (!empty($elems)) {
+                    $structured_menu[] = array(
+                        'menu_title'    => 'Standard Services',
+                        'menu_elements' => $elems,
                     );
                 }
             }
-            $menu_data = array(
-                array(
-                    'menu_title'    => 'Standard Services',
-                    'menu_elements' => $menu_elements,
-                )
-            );
-            update_post_meta($listing_id, '_menu', $menu_data);
+
+            if (!empty($structured_menu)) {
+                update_post_meta($listing_id, '_menu', $structured_menu);
+                update_post_meta($listing_id, 'menu', $structured_menu);
+                update_post_meta($listing_id, '_menu_status', 'on');
+                update_post_meta($listing_id, 'menu_status', 'on');
+            }
         }
 
         // Opening hours
@@ -795,7 +901,7 @@ class ZipBiz_Vendor {
 
         if (!empty($listing_ids)) {
             $ids_placeholder = implode(',', array_map('intval', $listing_ids));
-            $table_name = $wpdb->prefix . 'bookings';
+            $table_name = ZipBiz_Bookings::get_bookings_table();
             if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
                 $gross = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status IN ('completed', 'confirmed')"));
                 $refunds = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status = 'refunded'"));
@@ -1045,42 +1151,49 @@ class ZipBiz_Vendor {
                 'post_status'      => 'publish',
                 'order'            => 'ASC',
                 'orderby'          => 'menu_order title',
-                'tax_query'        => array(
-                    array(
-                        'taxonomy' => 'product_type',
-                        'field'    => 'slug',
-                        'terms'    => array('listing_package', 'listing_package_subscription'),
-                    ),
-                ),
             ));
 
             if (!empty($posts)) {
                 foreach ($posts as $p) {
                     $prod = function_exists('wc_get_product') ? wc_get_product($p->ID) : null;
-                    $price = $prod ? floatval($prod->get_price()) : floatval(get_post_meta($p->ID, '_regular_price', true));
-                    $limit = intval(get_post_meta($p->ID, '_listing_limit', true));
-                    $duration = intval(get_post_meta($p->ID, '_listing_duration', true));
-                    $is_featured = (get_post_meta($p->ID, '_listing_featured', true) === 'yes' || get_post_meta($p->ID, '_listing_featured', true) == 1);
-                    $has_booking = (get_post_meta($p->ID, '_package_option_booking', true) === 'yes' || get_post_meta($p->ID, '_package_option_booking', true) == 1);
-                    $is_free = ($price <= 0 || stripos($p->post_title, 'silver') !== false);
+                    $type = $prod ? $prod->get_type() : '';
+                    $title_lower = strtolower($p->post_title);
+                    $has_package_meta = get_post_meta($p->ID, '_listing_limit', true) !== '' || get_post_meta($p->ID, '_package_limit', true) !== '';
+                    $is_plan = in_array($type, array('listing_package', 'listing_package_subscription', 'subscription')) ||
+                               $has_package_meta ||
+                               strpos($title_lower, 'silver') !== false ||
+                               strpos($title_lower, 'gold') !== false ||
+                               strpos($title_lower, 'diamond') !== false ||
+                               strpos($title_lower, 'listing') !== false;
 
-                    $package_products[] = array(
-                        'id'               => $p->ID,
-                        'name'             => $p->post_title,
-                        'description'      => !empty($p->post_excerpt) ? wp_strip_all_tags($p->post_excerpt) : wp_strip_all_tags($p->post_content),
-                        'price'            => $price,
-                        'price_html'       => $prod ? $prod->get_price_html() : ('₹' . $price),
-                        'is_free'          => $is_free,
-                        'listing_limit'    => ($limit > 0 ? $limit : ($is_free ? 1 : 0)),
-                        'listing_duration' => $duration > 0 ? $duration : 365,
-                        'is_featured'      => $is_featured,
-                        'has_booking'      => $has_booking,
-                    );
+                    if ($is_plan) {
+                        $price = $prod ? floatval($prod->get_price()) : floatval(get_post_meta($p->ID, '_regular_price', true));
+                        $limit = intval(get_post_meta($p->ID, '_listing_limit', true) ?: get_post_meta($p->ID, '_package_limit', true));
+                        $duration = intval(get_post_meta($p->ID, '_listing_duration', true) ?: get_post_meta($p->ID, '_package_duration', true));
+                        $is_featured = (get_post_meta($p->ID, '_listing_featured', true) === 'yes' || get_post_meta($p->ID, '_listing_featured', true) == 1);
+                        $has_booking = (get_post_meta($p->ID, '_package_option_booking', true) === 'yes' || get_post_meta($p->ID, '_package_option_booking', true) == 1);
+                        
+                        $is_silver = (strpos($title_lower, 'silver') !== false);
+                        $is_free = ($price <= 0);
+
+                        $package_products[] = array(
+                            'id'               => $p->ID,
+                            'name'             => $p->post_title,
+                            'description'      => !empty($p->post_excerpt) ? wp_strip_all_tags($p->post_excerpt) : wp_strip_all_tags($p->post_content),
+                            'price'            => $price,
+                            'price_html'       => $is_free ? 'Free' : ($prod ? $prod->get_price_html() : ('₹' . $price)),
+                            'is_free'          => $is_free,
+                            'listing_limit'    => ($limit > 0 ? $limit : ($is_silver ? 1 : 0)),
+                            'listing_duration' => $duration > 0 ? $duration : 365,
+                            'is_featured'      => $is_featured,
+                            'has_booking'      => $has_booking || true,
+                        );
+                    }
                 }
             }
         }
 
-        // Fallback default 3 tiers if no WC listing_package products created yet
+        // Fallback default 3 tiers if no matching WC products created yet
         if (empty($package_products)) {
             $package_products = array(
                 array(
@@ -1188,10 +1301,7 @@ class ZipBiz_Vendor {
         $params = $request->get_json_params();
         $product_id = intval($params['product_id'] ?? 0);
 
-        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
-            return ZipBiz_REST_API::error_response('TABLE_MISSING', 'User packages table not found', 500);
-        }
+        $table_name = $this->ensure_user_packages_table();
 
         // Check if user already has an active package with slots remaining
         $existing = $wpdb->get_row($wpdb->prepare(
@@ -1240,6 +1350,15 @@ class ZipBiz_Vendor {
 
         if (!$inserted) {
             return ZipBiz_REST_API::error_response('INSERT_FAILED', 'Could not activate free package', 500);
+        }
+
+        // Assign provider and owner roles to the vendor
+        $user->add_role('provider');
+        $user->add_role('owner');
+
+        // Integrate with native Listeo package handler if available
+        if (function_exists('listeo_core_give_user_package')) {
+            listeo_core_give_user_package($user->ID, $product_id ?: 1001);
         }
 
         return ZipBiz_REST_API::success_response(array(
@@ -1297,5 +1416,40 @@ class ZipBiz_Vendor {
             'categories' => $cat_list,
             'regions'    => $region_list,
         ));
+    }
+
+    /**
+     * Ensure listeo_core_user_packages table exists
+     */
+    private function ensure_user_packages_table() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            $charset_collate = $wpdb->get_charset_collate();
+            $sql = "CREATE TABLE $table_name (
+              id bigint(20) NOT NULL auto_increment,
+              user_id bigint(20) NOT NULL,
+              product_id bigint(20) NOT NULL,
+              order_id bigint(20) NOT NULL default 0,
+              package_featured int(1) NULL default 0,
+              package_duration bigint(20) NULL default 365,
+              package_limit bigint(20) NOT NULL default 1,
+              package_count bigint(20) NOT NULL default 0,
+              package_option_booking int(1) NULL default 1,
+              package_option_reviews int(1) NULL default 1,
+              package_option_gallery int(1) NULL default 1,
+              package_option_gallery_limit bigint(20) NULL default 10,
+              package_option_social_links int(1) NULL default 1,
+              package_option_opening_hours int(1) NULL default 1,
+              package_option_video int(1) NULL default 1,
+              package_option_pricing_menu int(1) NULL default 1,
+              package_option_coupons int(1) NULL default 1,
+              package_option_faq int(1) NULL default 1,
+              PRIMARY KEY  (id)
+            ) $charset_collate;";
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($sql);
+        }
+        return $table_name;
     }
 }

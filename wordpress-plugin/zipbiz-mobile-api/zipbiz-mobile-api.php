@@ -57,22 +57,52 @@ function zipbiz_mobile_api_activate() {
 }
 
 /**
+ * Register roles so WordPress recognizes guest and provider
+ */
+add_action('init', 'zipbiz_ensure_roles_exist');
+function zipbiz_ensure_roles_exist() {
+    if (!get_role('guest')) {
+        add_role('guest', 'Guest', array('read' => true));
+    }
+    if (!get_role('provider')) {
+        add_role('provider', 'Provider', array(
+            'read'          => true,
+            'upload_files'  => true,
+            'publish_posts' => true,
+            'edit_posts'    => true,
+        ));
+    }
+    if (!get_role('owner')) {
+        add_role('owner', 'Owner', array(
+            'read'          => true,
+            'upload_files'  => true,
+            'publish_posts' => true,
+            'edit_posts'    => true,
+        ));
+    }
+}
+
+/**
  * Automatically assign role on registration:
- * Vendors get 'owner' role, customers get 'guest' role
+ * Vendors get 'provider' + 'owner' role, customers get 'guest' + 'customer' role
  */
 add_action('user_register', 'zipbiz_assign_user_role_on_register', 10, 1);
 function zipbiz_assign_user_role_on_register($user_id) {
     $user = get_user_by('id', $user_id);
     if (!$user) return;
 
-    $requested_role = isset($_REQUEST['role']) ? sanitize_text_field($_REQUEST['role']) : '';
-    $is_vendor = (!empty($_REQUEST['is_vendor']) && $_REQUEST['is_vendor'] !== 'false');
+    zipbiz_ensure_roles_exist();
 
-    if ($requested_role === 'owner' || $requested_role === 'vendor' || $requested_role === 'seller' || $is_vendor) {
-        $user->set_role('owner');
+    $requested_role = isset($_REQUEST['role']) ? sanitize_text_field($_REQUEST['role']) : '';
+    $is_vendor = (!empty($_REQUEST['is_vendor']) && $_REQUEST['is_vendor'] !== 'false' && $_REQUEST['is_vendor'] !== false);
+
+    if ($requested_role === 'provider' || $requested_role === 'owner' || $requested_role === 'vendor' || $requested_role === 'seller' || $is_vendor) {
+        $user->set_role('provider');
+        $user->add_role('owner');
     } else {
         if (!in_array('administrator', (array)$user->roles)) {
             $user->set_role('guest');
+            $user->add_role('customer');
         }
     }
 }
@@ -110,19 +140,114 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
         $data['listing_data']['_featured_image_url'] = $featured_url;
     }
 
-    // Visiting fee & custom pricing meta
+    // Ensure gallery images are resolved to URLs
+    $gallery_raw = get_post_meta($listing_id, '_gallery', true);
+    if (!empty($gallery_raw)) {
+        $gallery_urls = array();
+        if (is_array($gallery_raw)) {
+            foreach ($gallery_raw as $gid => $gitem) {
+                if (is_numeric($gid) && !empty($gitem) && is_string($gitem) && (strpos($gitem, 'http') === 0)) {
+                    $gallery_urls[] = $gitem;
+                } elseif (is_numeric($gitem)) {
+                    $url = wp_get_attachment_url($gitem);
+                    if ($url) $gallery_urls[] = $url;
+                } elseif (is_string($gitem) && (strpos($gitem, 'http') === 0)) {
+                    $gallery_urls[] = $gitem;
+                }
+            }
+        } elseif (is_string($gallery_raw)) {
+            $decoded_g = json_decode($gallery_raw, true);
+            if (is_array($decoded_g)) {
+                foreach ($decoded_g as $gitem) {
+                    if (is_string($gitem) && strpos($gitem, 'http') === 0) {
+                        $gallery_urls[] = $gitem;
+                    } elseif (is_numeric($gitem)) {
+                        $url = wp_get_attachment_url($gitem);
+                        if ($url) $gallery_urls[] = $url;
+                    }
+                }
+            }
+        }
+        if (!empty($gallery_urls)) {
+            $data['gallery'] = $gallery_urls;
+            $data['gallery_images'] = $gallery_urls;
+            $data['_gallery'] = $gallery_urls;
+            if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+                $data['listing_data'] = array();
+            }
+            $data['listing_data']['_gallery'] = $gallery_urls;
+            $data['listing_data']['gallery'] = $gallery_urls;
+            $data['listing_data']['gallery_images'] = $gallery_urls;
+            if (empty($featured_url) && !empty($gallery_urls[0])) {
+                $data['featured_image'] = $gallery_urls[0];
+                $data['featured_image_url'] = $gallery_urls[0];
+                $data['image'] = $gallery_urls[0];
+                $data['listing_data']['_featured_image_url'] = $gallery_urls[0];
+            }
+        }
+    }
+
+    // Slots meta
+    $slots = get_post_meta($listing_id, '_slots', true);
+    if (!empty($slots)) {
+        $decoded_slots = is_string($slots) ? json_decode($slots, true) : $slots;
+        $data['slots'] = $decoded_slots;
+        $data['_slots'] = $decoded_slots;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_slots'] = $decoded_slots;
+    }
+    $slots_status = get_post_meta($listing_id, '_slots_status', true);
+    if (!empty($slots_status)) {
+        $data['slots_status'] = $slots_status;
+        $data['_slots_status'] = $slots_status;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_slots_status'] = $slots_status;
+    }
+
+    // FAQs meta
+    $faq = get_post_meta($listing_id, '_faq', true);
+    if (!empty($faq)) {
+        $data['faq'] = $faq;
+        $data['_faq'] = $faq;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_faq'] = $faq;
+    }
+
+    // Visiting fee & custom pricing meta (with fallbacks)
     $visiting_fee = get_post_meta($listing_id, '_visiting_fee', true);
+    if ($visiting_fee === '') {
+        $visiting_fee = get_post_meta($listing_id, 'visiting_fee', true);
+    }
+    if ($visiting_fee === '') {
+        $visiting_fee = get_post_meta($listing_id, '_visiting_charges', true);
+    }
+    if ($visiting_fee === '') {
+        $visiting_fee = get_post_meta($listing_id, 'visiting_charges', true);
+    }
     if ($visiting_fee !== '') {
         $data['visiting_fee'] = $visiting_fee;
         $data['_visiting_fee'] = $visiting_fee;
+        $data['visiting_charges'] = $visiting_fee;
+        $data['_visiting_charges'] = $visiting_fee;
         if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
             $data['listing_data'] = array();
         }
         $data['listing_data']['_visiting_fee'] = $visiting_fee;
         $data['listing_data']['visiting_fee'] = $visiting_fee;
+        $data['listing_data']['_visiting_charges'] = $visiting_fee;
+        $data['listing_data']['visiting_charges'] = $visiting_fee;
     }
 
     $inspection_fee = get_post_meta($listing_id, '_inspection_fee', true);
+    if ($inspection_fee === '') {
+        $inspection_fee = get_post_meta($listing_id, 'inspection_fee', true);
+    }
     if ($inspection_fee !== '') {
         $data['inspection_fee'] = $inspection_fee;
         $data['_inspection_fee'] = $inspection_fee;
@@ -130,9 +255,13 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
             $data['listing_data'] = array();
         }
         $data['listing_data']['_inspection_fee'] = $inspection_fee;
+        $data['listing_data']['inspection_fee'] = $inspection_fee;
     }
 
     $add_label = get_post_meta($listing_id, '_additional_fee_label', true);
+    if (empty($add_label)) {
+        $add_label = get_post_meta($listing_id, 'additional_fee_label', true);
+    }
     if (!empty($add_label)) {
         $data['additional_fee_label'] = $add_label;
         $data['_additional_fee_label'] = $add_label;
@@ -140,9 +269,13 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
             $data['listing_data'] = array();
         }
         $data['listing_data']['_additional_fee_label'] = $add_label;
+        $data['listing_data']['additional_fee_label'] = $add_label;
     }
 
     $add_amount = get_post_meta($listing_id, '_additional_fee_amount', true);
+    if (empty($add_amount)) {
+        $add_amount = get_post_meta($listing_id, 'additional_fee_amount', true);
+    }
     if (!empty($add_amount)) {
         $data['additional_fee_amount'] = $add_amount;
         $data['_additional_fee_amount'] = $add_amount;
@@ -150,9 +283,13 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
             $data['listing_data'] = array();
         }
         $data['listing_data']['_additional_fee_amount'] = $add_amount;
+        $data['listing_data']['additional_fee_amount'] = $add_amount;
     }
 
     $min_booking = get_post_meta($listing_id, '_min_booking_value', true);
+    if (empty($min_booking)) {
+        $min_booking = get_post_meta($listing_id, 'min_booking_value', true);
+    }
     if (!empty($min_booking)) {
         $data['min_booking_value'] = $min_booking;
         $data['_min_booking_value'] = $min_booking;
@@ -160,6 +297,31 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
             $data['listing_data'] = array();
         }
         $data['listing_data']['_min_booking_value'] = $min_booking;
+        $data['listing_data']['min_booking_value'] = $min_booking;
+    }
+
+    // Expose all custom post meta fields dynamically
+    $all_custom_meta = get_post_custom($listing_id);
+    if (!empty($all_custom_meta) && is_array($all_custom_meta)) {
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        foreach ($all_custom_meta as $meta_k => $meta_v_arr) {
+            $meta_v = is_array($meta_v_arr) ? reset($meta_v_arr) : $meta_v_arr;
+            if (!isset($data[$meta_k])) {
+                $data[$meta_k] = $meta_v;
+            }
+            if (!isset($data['listing_data'][$meta_k])) {
+                $data['listing_data'][$meta_k] = $meta_v;
+            }
+            $clean_k = ltrim($meta_k, '_');
+            if (!isset($data[$clean_k])) {
+                $data[$clean_k] = $meta_v;
+            }
+            if (!isset($data['listing_data'][$clean_k])) {
+                $data['listing_data'][$clean_k] = $meta_v;
+            }
+        }
     }
 
     $response->set_data($data);

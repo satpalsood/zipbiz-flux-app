@@ -94,7 +94,8 @@ class ListingService extends WooCommerceService {
         'phone': phoneNumber,
       };
       if (ServerConfig().isListeoType) {
-        data['role'] = isVendor ? 'owner' : 'guest';
+        data['role'] = isVendor ? 'provider' : 'guest';
+        data['is_vendor'] = isVendor;
       }
 
       final response = await httpPost(
@@ -224,7 +225,7 @@ class ListingService extends WooCommerceService {
       final page = int.tryParse('${configValue['page']}') ?? 1;
       final perPage = int.tryParse('${configValue['limit']}') ?? apiPageSize;
       var endPoint =
-          '$domain/wp-json/wp/v2/${DataMapping().kProductPath}?page=$page&per_page=$perPage';
+          '$domain/wp-json/wp/v2/${DataMapping().kProductPath}?_embed=true&page=$page&per_page=$perPage';
       final language = lang?.toString();
       if ((language?.isNotEmpty ?? false) && kAdvanceConfig.isMultiLanguages) {
         endPoint += '&lang=$language';
@@ -336,7 +337,7 @@ class ListingService extends WooCommerceService {
     try {
       var list = <Product>[];
       var endPoint =
-          '$domain/wp-json/wp/v2/${DataMapping().kProductPath}?page=${page ?? 1}&per_page=$limit';
+          '$domain/wp-json/wp/v2/${DataMapping().kProductPath}?_embed=true&page=${page ?? 1}&per_page=$limit';
       if (categoryId.isNotEmpty) {
         endPoint += '&${DataMapping().kCategoryPath}=$categoryId';
       }
@@ -669,7 +670,7 @@ class ListingService extends WooCommerceService {
   @override
   Future<Product?> getProduct(id) async {
     try {
-      var endPoint = '$domain/wp-json/wp/v2/${DataMapping().kProductPath}/$id';
+      var endPoint = '$domain/wp-json/wp/v2/${DataMapping().kProductPath}/$id?_embed=true';
       var response = await httpGet(endPoint.toUri()!);
       return Product.fromListingJson(jsonDecode(response.body));
     } catch (e) {

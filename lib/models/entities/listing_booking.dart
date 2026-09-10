@@ -27,17 +27,18 @@ class ListingBooking {
 
   ListingBooking.fromJson(Map json) {
     id = json['id']?.toString() ?? json['order_id']?.toString();
-    title = json['title'];
+    title = json['title']?.toString();
     if (json['featured_image'] is String) {
       featuredImage = json['featured_image'];
     } else {
       featuredImage = kDefaultImage;
     }
 
-    status = json['status'];
-    price = json['price'];
-    createdDate = json['created'];
-    orderId = json['order_id'];
+    status = json['status']?.toString();
+    price = json['price']?.toString();
+    createdDate = json['created']?.toString();
+    orderId = json['order_id']?.toString();
+    orderStatus = json['order_status']?.toString();
     Map commentJson = {};
     if (json['comment'] != null) {
       if (json['comment'] is String && (json['comment'] as String).trim().isNotEmpty) {

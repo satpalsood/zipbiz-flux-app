@@ -125,18 +125,6 @@ class ProductTitleShort extends StatelessWidget {
     if (kProductDetail.showSocialLinks) {
       list.add(Wrap(
         children: <Widget>[
-          if (isNotBlank(product!.whatsapp))
-            SocialItem(
-              color: Colors.green,
-              title: 'WhatsApp',
-              icon: 'assets/icons/brands/whatsapp.svg',
-              onTap: () async {
-                await Tools.launchURL(
-                    product!.whatsapp?.contains('http') ?? false
-                        ? product!.whatsapp
-                        : 'https://wa.me/${product!.whatsapp}');
-              },
-            ),
           if (isNotBlank(product!.skype))
             SocialItem(
               color: Colors.blueAccent,

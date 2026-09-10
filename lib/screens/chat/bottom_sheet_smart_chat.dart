@@ -54,7 +54,7 @@ class _BottomSheetSmartChatState extends State<BottomSheetSmartChat>
           alignment: Alignment.center,
           child: FloatingActionButton(
             heroTag: null,
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: const Color(0xFFFF6600),
             onPressed: () async {
               if (scaleAnimationController.isCompleted) {
                 Future.delayed(Duration.zero, scaleAnimationController.reverse);
@@ -63,8 +63,10 @@ class _BottomSheetSmartChatState extends State<BottomSheetSmartChat>
                 await scaleAnimationController.forward();
               }
             },
-            child: kConfigChat.iconConfig.getIconWidget(
-              defaultColor: Theme.of(context).primaryColor,
+            child: const Icon(
+              Icons.support_agent_rounded,
+              color: Colors.white,
+              size: 30,
             ),
           ),
         ),

@@ -93,6 +93,59 @@ class _ZipBizAddEditListingScreenState
   final _inspectionFeeController = TextEditingController(text: '199');
   final _additionalFeeLabelController = TextEditingController();
   final _additionalFeeAmountController = TextEditingController();
+  final _minBookingValueController = TextEditingController();
+  final List<List<String>> _daySlots = List.generate(7, (_) => []);
+  int _activeSlotDayIndex = 0;
+
+  static const List<String> _dayNames = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  void _generateDefaultSlotsForDay(int dayIdx) {
+    final slots = <String>[];
+    if (_slotInterval == 2) {
+      slots.addAll([
+        '09:00 AM - 11:00 AM|$_slotLimit',
+        '11:00 AM - 01:00 PM|$_slotLimit',
+        '02:00 PM - 04:00 PM|$_slotLimit',
+        '04:00 PM - 06:00 PM|$_slotLimit',
+        '06:00 PM - 08:00 PM|$_slotLimit',
+      ]);
+    } else {
+      slots.addAll([
+        '09:00 AM - 10:00 AM|$_slotLimit',
+        '10:00 AM - 11:00 AM|$_slotLimit',
+        '11:00 AM - 12:00 PM|$_slotLimit',
+        '12:00 PM - 01:00 PM|$_slotLimit',
+        '02:00 PM - 03:00 PM|$_slotLimit',
+        '03:00 PM - 04:00 PM|$_slotLimit',
+        '04:00 PM - 05:00 PM|$_slotLimit',
+        '05:00 PM - 06:00 PM|$_slotLimit',
+        '06:00 PM - 07:00 PM|$_slotLimit',
+        '07:00 PM - 08:00 PM|$_slotLimit',
+      ]);
+    }
+    _daySlots[dayIdx] = slots;
+  }
+
+  void _generateDefaultSlotsForAllDays() {
+    for (int i = 0; i < 7; i++) {
+      final dayName = _dayNames[i];
+      final isOpen = _openingHours[dayName]?['open'] == true;
+      if (isOpen) {
+        _generateDefaultSlotsForDay(i);
+      } else {
+        _daySlots[i] = [];
+      }
+    }
+    if (mounted) setState(() {});
+  }
   final List<Map<String, dynamic>> _menuServices = [];
 
   // Media & Dynamic Config
@@ -199,6 +252,7 @@ class _ZipBizAddEditListingScreenState
   }
 
   void _initDefaults() {
+    _generateDefaultSlotsForAllDays();
     _menuServices.add({
       'name': 'Standard Inspection & Repair',
       'price': '499',
@@ -265,6 +319,35 @@ class _ZipBizAddEditListingScreenState
     _slotInterval = int.tryParse('${item['slot_interval']}') ?? 1;
     _additionalFeeLabelController.text = item['additional_fee_label'] ?? '';
     _additionalFeeAmountController.text = item['additional_fee_amount'] != null ? '${item['additional_fee_amount']}' : '';
+    _minBookingValueController.text = '${item['min_booking_value'] ?? item['_min_booking_value'] ?? ''}';
+
+    final rawSlots = item['slots'] ?? item['_slots'];
+    if (rawSlots != null) {
+      try {
+        dynamic parsed = rawSlots;
+        if (rawSlots is String) {
+          parsed = jsonDecode(rawSlots);
+        }
+        if (parsed is List) {
+          for (int i = 0; i < parsed.length && i < 7; i++) {
+            final dayList = parsed[i];
+            if (dayList is List) {
+              _daySlots[i] = dayList.map((s) => s.toString()).toList();
+            }
+          }
+        } else if (parsed is Map) {
+          for (int i = 0; i < 7; i++) {
+            final dayList = parsed[i] ?? parsed['$i'] ?? parsed[_dayNames[i].toLowerCase()];
+            if (dayList is List) {
+              _daySlots[i] = dayList.map((s) => s.toString()).toList();
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    if (_daySlots.every((day) => day.isEmpty)) {
+      _generateDefaultSlotsForAllDays();
+    }
     
     // Resilient boolean evaluation
     _bookingEnabled = item['booking_status'] == true || item['booking_status'] == 'on' || item['booking_status'] == '1';
@@ -330,6 +413,7 @@ class _ZipBizAddEditListingScreenState
     _inspectionFeeController.dispose();
     _additionalFeeLabelController.dispose();
     _additionalFeeAmountController.dispose();
+    _minBookingValueController.dispose();
     super.dispose();
   }
 
@@ -445,8 +529,11 @@ class _ZipBizAddEditListingScreenState
       'booking_status': _bookingEnabled ? 'on' : 'off',
       'slots_status': _slotsEnabled ? 'on' : 'off',
       'slot_limit': _slotLimit,
+      'slots': _daySlots,
+      '_slots': _daySlots,
       'visiting_fee': _visitingFeeController.text.trim(),
       'inspection_fee': _inspectionFeeController.text.trim(),
+      'min_booking_value': _minBookingValueController.text.trim(),
       'slot_interval': _slotInterval,
       'additional_fee_label': _additionalFeeLabelController.text.trim(),
       'additional_fee_amount': _additionalFeeAmountController.text.trim(),
@@ -468,7 +555,7 @@ class _ZipBizAddEditListingScreenState
 
     try {
       if (widget.initialListing != null) {
-        final id = widget.initialListing!['id'] as int;
+        final id = int.tryParse(widget.initialListing!['id']?.toString() ?? '0') ?? 0;
         await ZipBizApiService().updateVendorListing(user: user, id: id, data: payload);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Listing updated successfully!'), backgroundColor: ZipBizColors.statusOpen),
@@ -558,6 +645,57 @@ class _ZipBizAddEditListingScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _addCustomSlotDialog(int dayIdx) {
+    final startCtrl = TextEditingController(text: '09:00 AM');
+    final endCtrl = TextEditingController(text: '10:00 AM');
+    final capCtrl = TextEditingController(text: '$_slotLimit');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Add Slot to ${_dayNames[dayIdx]}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: startCtrl,
+              decoration: const InputDecoration(labelText: 'Start Time (e.g. 09:00 AM)'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: endCtrl,
+              decoration: const InputDecoration(labelText: 'End Time (e.g. 10:00 AM)'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: capCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Max Bookings (Capacity)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
+            onPressed: () {
+              final s = startCtrl.text.trim();
+              final e = endCtrl.text.trim();
+              final c = int.tryParse(capCtrl.text.trim()) ?? _slotLimit;
+              if (s.isNotEmpty && e.isNotEmpty) {
+                setState(() {
+                  _daySlots[dayIdx].add('$s - $e|$c');
+                });
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Add Slot'),
+          ),
+        ],
       ),
     );
   }
@@ -1464,6 +1602,112 @@ class _ZipBizAddEditListingScreenState
                   ],
                   onChanged: (val) => setState(() => _slotInterval = val ?? 1),
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Daily Slots Configuration:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                      icon: const Icon(Icons.auto_awesome, size: 16),
+                      label: const Text('Auto-Generate All', style: TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        _generateDefaultSlotsForAllDays();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Generated standard slots for open days!'), duration: Duration(seconds: 2)),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: List.generate(7, (idx) {
+                      final day = _dayNames[idx];
+                      final isSelected = _activeSlotDayIndex == idx;
+                      final count = _daySlots[idx].length;
+                      final isOpen = _openingHours[day]?['open'] == true;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text('${day.substring(0, 3)} ($count)'),
+                          selected: isSelected,
+                          selectedColor: ZipBizColors.primaryContainer,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : (isOpen ? Colors.black87 : Colors.grey),
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 12,
+                          ),
+                          onSelected: (_) => setState(() => _activeSlotDayIndex = idx),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ZipBizColors.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: ZipBizColors.surfaceContainer),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${_dayNames[_activeSlotDayIndex]} Slots (${_daySlots[_activeSlotDayIndex].length}):',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          InkWell(
+                            onTap: () => _addCustomSlotDialog(_activeSlotDayIndex),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.add, size: 16, color: ZipBizColors.primaryContainer),
+                                  SizedBox(width: 2),
+                                  Text('Add Slot', style: TextStyle(color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (_daySlots[_activeSlotDayIndex].isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text('No slots for this day. Tap "Add Slot" or "Auto-Generate All".', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        )
+                      else
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _daySlots[_activeSlotDayIndex].map((s) {
+                            final parts = s.split('|');
+                            final timeText = parts[0];
+                            final cap = parts.length > 1 ? parts[1] : '$_slotLimit';
+                            return Chip(
+                              label: Text('$timeText (max $cap)', style: const TextStyle(fontSize: 11)),
+                              backgroundColor: Colors.white,
+                              deleteIcon: const Icon(Icons.close, size: 14),
+                              onDeleted: () {
+                                setState(() {
+                                  _daySlots[_activeSlotDayIndex].remove(s);
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),
@@ -1524,6 +1768,17 @@ class _ZipBizAddEditListingScreenState
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _minBookingValueController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Minimum Booking Value (₹) (Optional)',
+            hintText: 'e.g. 299 - minimum service order total required to book',
+            prefixText: '₹ ',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 20),
         Row(

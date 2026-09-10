@@ -45,6 +45,8 @@ class ZipBizApiService {
       'address': address,
       'notes': notes,
       'payment_method': paymentMethod,
+      'user_id': user.id,
+      'cookie': user.cookie,
     });
 
     final response = await http.post(url, headers: _getHeaders(user), body: body);
@@ -59,7 +61,7 @@ class ZipBizApiService {
 
   /// Get single booking details
   Future<Map<String, dynamic>> getBookingDetail(int bookingId, User user) async {
-    final url = Uri.parse('$_baseUrl/booking/$bookingId');
+    final url = Uri.parse('$_baseUrl/booking/$bookingId?user_id=${user.id ?? 0}&cookie=${Uri.encodeComponent(user.cookie ?? "")}');
     final response = await http.get(url, headers: _getHeaders(user));
     final data = jsonDecode(response.body);
 
@@ -90,7 +92,8 @@ class ZipBizApiService {
   /// Cancel booking
   Future<bool> cancelBooking(int bookingId, User user) async {
     final url = Uri.parse('$_baseUrl/booking/$bookingId/cancel');
-    final response = await http.post(url, headers: _getHeaders(user));
+    final body = jsonEncode({'user_id': user.id, 'cookie': user.cookie});
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
     final data = jsonDecode(response.body);
     return response.statusCode == 200 && data['success'] == true;
   }
@@ -98,7 +101,11 @@ class ZipBizApiService {
   /// Create Razorpay order server-side
   Future<Map<String, dynamic>> createRazorpayOrder(int bookingId, User user) async {
     final url = Uri.parse('$_baseUrl/payment/create-order');
-    final body = jsonEncode({'booking_id': bookingId});
+    final body = jsonEncode({
+      'booking_id': bookingId,
+      'user_id': user.id,
+      'cookie': user.cookie,
+    });
 
     final response = await http.post(url, headers: _getHeaders(user), body: body);
     final data = jsonDecode(response.body);
@@ -124,6 +131,8 @@ class ZipBizApiService {
       'razorpay_order_id': razorpayOrderId,
       'razorpay_payment_id': razorpayPaymentId,
       'razorpay_signature': razorpaySignature,
+      'user_id': user.id,
+      'cookie': user.cookie,
     });
 
     final response = await http.post(url, headers: _getHeaders(user), body: body);

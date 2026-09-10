@@ -842,6 +842,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                   ],
                   Expanded(
                     child: ZipBizButton(
+                      height: 50,
                       text: (_currentStep == 2)
                           ? 'Continue to Address & Payment'
                           : (_paymentMethod == 'razorpay')

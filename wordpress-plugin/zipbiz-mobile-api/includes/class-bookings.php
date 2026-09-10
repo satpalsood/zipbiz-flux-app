@@ -47,11 +47,36 @@ class ZipBiz_Bookings {
             'callback' => array($this, 'get_customer_bookings'),
             'permission_callback' => '__return_true',
         ));
+
+        register_rest_route('wp/v2', '/booking', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'create_booking'),
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route('wp/v2', '/check-availability', array(
+            'methods'  => array('GET', 'POST'),
+            'callback' => array($this, 'get_availability'),
+            'permission_callback' => '__return_true',
+        ));
     }
 
     public function check_auth($request) {
         $user = ZipBiz_REST_API::authenticate_user($request);
         return !is_wp_error($user);
+    }
+
+    public static function get_bookings_table() {
+        global $wpdb;
+        $calendar_table = $wpdb->prefix . 'bookings_calendar';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$calendar_table'") === $calendar_table) {
+            return $calendar_table;
+        }
+        $bookings_table = $wpdb->prefix . 'bookings';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$bookings_table'") === $bookings_table) {
+            return $bookings_table;
+        }
+        return $calendar_table;
     }
 
     /**
@@ -85,12 +110,12 @@ class ZipBiz_Bookings {
         $owner_id = $listing->post_author;
 
         // 1. Race Condition / Availability Check
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = self::get_bookings_table();
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
             $existing = $wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM $table_name 
-                 WHERE listing_id = %d AND date_start = %s 
-                 AND status NOT IN ('cancelled', 'rejected') 
+                 WHERE listing_id = %d AND DATE(date_start) = %s 
+                 AND status NOT IN ('cancelled', 'rejected', 'expired') 
                  AND (comment LIKE %s OR comment LIKE %s)",
                 $listing_id, $date, '%' . $wpdb->esc_like($time_slot) . '%', '%"slot":"' . $wpdb->esc_like($time_slot) . '"%'
             ));
@@ -144,17 +169,35 @@ class ZipBiz_Bookings {
         $booking_id = 0;
         $order_id = 0;
 
+        $slot_parts = explode(' - ', $time_slot);
+        $start_time = !empty($slot_parts[0]) ? trim($slot_parts[0]) : '09:00:00';
+        $end_time = !empty($slot_parts[1]) ? trim($slot_parts[1]) : '18:00:00';
+        $start_dt = date('Y-m-d H:i:s', strtotime($date . ' ' . $start_time));
+        $end_dt = date('Y-m-d H:i:s', strtotime($date . ' ' . $end_time));
+
         // Structured booking details
+        $customer_first = $user->first_name ?: $user->display_name;
+        $customer_last = $user->last_name ?: '';
+        $customer_phone = get_user_meta($user->ID, 'billing_phone', true) ?: ($address['phone'] ?? '');
+
         $booking_data = array(
+            'first_name'     => $customer_first,
+            'last_name'      => $customer_last,
+            'name'           => $user->display_name,
+            'customer_name'  => $user->display_name,
+            'email'          => $user->user_email,
+            'customer_email' => $user->user_email,
+            'phone'          => $customer_phone,
+            'customer_phone' => $customer_phone,
+            'service'        => !empty($item_details) ? $item_details : $selected_services,
+            'slot'           => $time_slot,
+            'time_slot'      => $time_slot,
+            'date'           => $date,
             'listing_id'     => $listing_id,
             'owner_id'       => $owner_id,
             'user_id'        => $user->ID,
-            'customer_name'  => $user->display_name,
-            'customer_email' => $user->user_email,
-            'customer_phone' => get_user_meta($user->ID, 'billing_phone', true) ?: ($address['phone'] ?? ''),
-            'date_start'     => $date . ' 00:00:00',
-            'date_end'       => $date . ' 23:59:59',
-            'time_slot'      => $time_slot,
+            'date_start'     => $start_dt,
+            'date_end'       => $end_dt,
             'price'          => $final_total,
             'base_price'     => $total_price,
             'tax_fee'        => $tax_and_fee,
@@ -162,24 +205,33 @@ class ZipBiz_Bookings {
             'payment_method' => $payment_method,
             'address'        => $address,
             'notes'          => $notes,
+            'message'        => $notes,
             'items'          => $item_details,
             'created'        => current_time('mysql'),
         );
 
         // Save in Listeo table if table exists
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-            $wpdb->insert($table_name, array(
+            $insert_data = array(
                 'bookings_author' => $user->ID,
+                'owner_id'        => $owner_id,
                 'listing_id'      => $listing_id,
-                'date_start'      => $date . ' 00:00:00',
-                'date_end'        => $date . ' 23:59:59',
+                'date_start'      => $start_dt,
+                'date_end'        => $end_dt,
                 'comment'         => json_encode($booking_data),
+                'type'            => 'reservation',
                 'order_id'        => 0,
                 'status'          => $initial_status,
                 'price'           => $final_total,
                 'created'         => current_time('mysql'),
-            ));
+            );
+            $wpdb->insert($table_name, $insert_data);
             $booking_id = $wpdb->insert_id;
+
+            // Trigger Listeo native booking calendar workflow
+            if ($booking_id && class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
+                Listeo_Core_Bookings_Calendar::set_booking_status($booking_id, $initial_status);
+            }
         } else {
             // Fallback to custom post type 'booking'
             $booking_id = wp_insert_post(array(
@@ -199,7 +251,22 @@ class ZipBiz_Bookings {
             update_user_meta($user->ID, '_zipbiz_last_service_address', $address);
         }
 
-        // Notify Vendor of New Booking Request
+        // Trigger Listeo native booking notification hooks
+        $owner_info = get_userdata($owner_id);
+        if ($owner_info) {
+            $mail_to_owner_args = array(
+                'email'   => $owner_info->user_email,
+                'booking' => $booking_data,
+            );
+            do_action('listeo_mail_to_owner_new_reservation', $mail_to_owner_args);
+        }
+        $mail_to_user_args = array(
+            'email'   => $user->user_email,
+            'booking' => $booking_data,
+        );
+        do_action('listeo_mail_to_user_waiting_approval', $mail_to_user_args);
+
+        // Notify Vendor of New Booking Request via FCM Push
         ZipBiz_Notifications::send_push_notification(
             $owner_id,
             'New Booking Request! 🔔',
@@ -213,7 +280,7 @@ class ZipBiz_Bookings {
 
         $booking_data['booking_id'] = $booking_id;
         $booking_data['listing_title'] = $listing->post_title;
-        $booking_data['listing_image'] = get_the_post_thumbnail_url($listing_id, 'medium') ?: '';
+        $booking_data['listing_image'] = get_the_post_thumbnail_url($listing_id, 'medium') ?: (get_post_meta($listing_id, '_featured_image_url', true) ?: '');
 
         return ZipBiz_REST_API::success_response($booking_data, 'Booking created successfully', 201);
     }
@@ -226,7 +293,7 @@ class ZipBiz_Bookings {
         $user = wp_get_current_user();
         $booking_id = intval($request['id']);
 
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = self::get_bookings_table();
         $row = null;
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
             $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $booking_id), ARRAY_A);
@@ -279,6 +346,7 @@ class ZipBiz_Bookings {
      * Get availability slots for a given date
      */
     public function get_availability($request) {
+        global $wpdb;
         $listing_id = intval($request->get_param('listing_id'));
         $date = sanitize_text_field($request->get_param('date') ?: date('Y-m-d'));
 
@@ -286,68 +354,139 @@ class ZipBiz_Bookings {
             return ZipBiz_REST_API::error_response('INVALID_LISTING', 'Invalid listing ID', 400);
         }
 
-        // Check if listing has custom configured slots in Listeo
-        $day_key = strtolower(date('l', strtotime($date)));
-        $un_slots = get_post_meta($listing_id, '_slots', true);
-        if (is_string($un_slots)) {
-            $decoded_slots = json_decode($un_slots, true);
-        } else {
-            $decoded_slots = $un_slots;
+        // Listeo day of week: Monday=0, Tuesday=1, ... Sunday=6
+        $dayofweek = date('w', strtotime($date));
+        $actual_day = ($dayofweek == 0) ? 6 : ($dayofweek - 1);
+        $day_name = strtolower(date('l', strtotime($date)));
+
+        $decoded_slots = null;
+        if (class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'get_slots_from_meta')) {
+            $listeo_raw = Listeo_Core_Bookings_Calendar::get_slots_from_meta($listing_id);
+            if (!empty($listeo_raw)) {
+                $decoded_slots = json_decode(json_encode($listeo_raw), true);
+            }
         }
 
-        $standard_slots = array();
-        if (is_array($decoded_slots) && !empty($decoded_slots[$day_key])) {
-            foreach ($decoded_slots[$day_key] as $slot_item) {
-                $parts = explode('|', $slot_item);
-                if (!empty($parts[0])) {
-                    $standard_slots[] = trim($parts[0]);
+        if (!$decoded_slots) {
+            $un_slots = get_post_meta($listing_id, '_slots', true);
+            if (is_string($un_slots)) {
+                $decoded_slots = json_decode($un_slots, true);
+                if (!is_array($decoded_slots) && function_exists('maybe_unserialize')) {
+                    $decoded_slots = maybe_unserialize($un_slots);
+                }
+            } else {
+                $decoded_slots = $un_slots;
+            }
+        }
+
+        // Check whether this listing has explicitly configured weekly slots
+        $has_configured_slots = false;
+        if (is_array($decoded_slots) && !empty($decoded_slots)) {
+            foreach ($decoded_slots as $day_k => $day_v) {
+                if (!empty($day_v) && (is_array($day_v) || is_object($day_v))) {
+                    $has_configured_slots = true;
+                    break;
                 }
             }
         }
 
-        $slot_interval = intval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 2);
-        if (empty($standard_slots)) {
-            if ($slot_interval === 1) {
-                $standard_slots = array(
-                    '09:00 AM - 10:00 AM',
-                    '10:00 AM - 11:00 AM',
-                    '11:00 AM - 12:00 PM',
-                    '12:00 PM - 01:00 PM',
-                    '02:00 PM - 03:00 PM',
-                    '03:00 PM - 04:00 PM',
-                    '04:00 PM - 05:00 PM',
-                    '05:00 PM - 06:00 PM',
-                    '06:00 PM - 07:00 PM',
-                    '07:00 PM - 08:00 PM',
-                );
-            } else {
-                $standard_slots = array(
-                    '09:00 AM - 11:00 AM',
-                    '11:00 AM - 01:00 PM',
-                    '02:00 PM - 04:00 PM',
-                    '04:00 PM - 06:00 PM',
-                    '06:00 PM - 08:00 PM',
-                );
+        $standard_slots = array();
+        $day_slots = null;
+        if (is_array($decoded_slots)) {
+            if (isset($decoded_slots[$actual_day])) {
+                $day_slots = $decoded_slots[$actual_day];
+            } elseif (isset($decoded_slots[strval($actual_day)])) {
+                $day_slots = $decoded_slots[strval($actual_day)];
+            } elseif (isset($decoded_slots[$day_name])) {
+                $day_slots = $decoded_slots[$day_name];
+            } elseif (isset($decoded_slots[ucfirst($day_name)])) {
+                $day_slots = $decoded_slots[ucfirst($day_name)];
             }
         }
 
         $max_slots = intval(get_post_meta($listing_id, '_slot_limit', true) ?: 3);
+        $slot_interval = intval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 1);
 
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'bookings';
+        if (is_array($day_slots) && !empty($day_slots)) {
+            foreach ($day_slots as $slot_item) {
+                if (is_string($slot_item)) {
+                    $parts = explode('|', $slot_item);
+                    if (!empty($parts[0])) {
+                        $standard_slots[] = array(
+                            'time'     => trim($parts[0]),
+                            'capacity' => (!empty($parts[1]) && intval($parts[1]) > 0) ? intval($parts[1]) : $max_slots,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Only inject fallback default slots if vendor has never configured slots at all
+        if (empty($standard_slots) && !$has_configured_slots) {
+            $default_times = ($slot_interval === 2) ? array(
+                '09:00 AM - 11:00 AM',
+                '11:00 AM - 01:00 PM',
+                '02:00 PM - 04:00 PM',
+                '04:00 PM - 06:00 PM',
+                '06:00 PM - 08:00 PM',
+            ) : array(
+                '09:00 AM - 10:00 AM',
+                '10:00 AM - 11:00 AM',
+                '11:00 AM - 12:00 PM',
+                '12:00 PM - 01:00 PM',
+                '02:00 PM - 03:00 PM',
+                '03:00 PM - 04:00 PM',
+                '04:00 PM - 05:00 PM',
+                '05:00 PM - 06:00 PM',
+                '06:00 PM - 07:00 PM',
+                '07:00 PM - 08:00 PM',
+            );
+            foreach ($default_times as $dt) {
+                $standard_slots[] = array(
+                    'time'     => $dt,
+                    'capacity' => $max_slots,
+                );
+            }
+        }
+
+        // Exclude slots that have already passed if date is today
+        $today = current_time('Y-m-d');
+        if ($date === $today && !empty($standard_slots)) {
+            $current_time = current_time('H:i');
+            $filtered_slots = array();
+            foreach ($standard_slots as $slot) {
+                $slot_time_parts = explode(' - ', $slot['time']);
+                $slot_start_hour = date('H:i', strtotime($slot_time_parts[0]));
+                if ($slot_start_hour > $current_time) {
+                    $filtered_slots[] = $slot;
+                }
+            }
+            $standard_slots = $filtered_slots;
+        }
+
+        $table_name = self::get_bookings_table();
         $booked_slots = array();
 
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-            $results = $wpdb->get_col($wpdb->prepare(
-                "SELECT comment FROM $table_name 
-                 WHERE listing_id = %d AND date_start LIKE %s 
-                 AND status NOT IN ('cancelled', 'rejected')",
-                $listing_id, $date . '%'
-            ));
-            foreach ($results as $c) {
-                $decoded = json_decode($c, true);
-                if (!empty($decoded['time_slot'])) {
-                    $booked_slots[] = $decoded['time_slot'];
+            $results = $wpdb->get_results($wpdb->prepare(
+                "SELECT date_start, date_end, comment FROM $table_name 
+                 WHERE listing_id = %d 
+                 AND DATE(date_start) = %s 
+                 AND type = 'reservation' 
+                 AND status NOT IN ('cancelled', 'rejected', 'expired')",
+                $listing_id, $date
+            ), ARRAY_A);
+
+            if (!empty($results)) {
+                foreach ($results as $row) {
+                    $decoded = json_decode($row['comment'] ?? '{}', true);
+                    if (!empty($decoded['time_slot'])) {
+                        $booked_slots[] = trim($decoded['time_slot']);
+                    } else if (!empty($row['date_start']) && !empty($row['date_end'])) {
+                        $start_fmt = date("h:i A", strtotime($row['date_start']));
+                        $end_fmt = date("h:i A", strtotime($row['date_end']));
+                        $booked_slots[] = "$start_fmt - $end_fmt";
+                    }
                 }
             }
         }
@@ -356,24 +495,34 @@ class ZipBiz_Bookings {
         $slots_out = array();
         $is_today = ($date === date('Y-m-d'));
         $current_hour = intval(date('H'));
+        $current_minute = intval(date('i'));
 
-        foreach ($standard_slots as $slot) {
-            $count = isset($slot_counts[$slot]) ? $slot_counts[$slot] : 0;
-            $is_available = ($count < $max_slots);
+        foreach ($standard_slots as $slot_obj) {
+            $slot_str = $slot_obj['time'];
+            $capacity = $slot_obj['capacity'];
+            $count = isset($slot_counts[$slot_str]) ? $slot_counts[$slot_str] : 0;
+            $remaining = max(0, $capacity - $count);
+            $is_available = ($remaining > 0);
 
             // Check if slot has already passed today
             if ($is_today) {
-                $start_hour = intval(substr($slot, 0, 2));
-                if (strpos($slot, 'PM') !== false && $start_hour < 12) {
-                    $start_hour += 12;
-                }
-                if ($start_hour <= $current_hour) {
-                    $is_available = false;
+                $hours = explode(' - ', $slot_str);
+                $slot_start_time = strtotime($hours[0]);
+                if ($slot_start_time !== false) {
+                    $slot_hour = intval(date('H', $slot_start_time));
+                    $slot_minute = intval(date('i', $slot_start_time));
+                    if ($slot_hour < $current_hour || ($slot_hour === $current_hour && $slot_minute <= $current_minute)) {
+                        $is_available = false;
+                        $remaining = 0;
+                    }
                 }
             }
+
             $slots_out[] = array(
-                'time'      => $slot,
+                'time'      => $slot_str,
                 'available' => $is_available,
+                'capacity'  => $capacity,
+                'remaining' => $remaining,
             );
         }
 
@@ -394,26 +543,31 @@ class ZipBiz_Bookings {
         $user = wp_get_current_user();
         $booking_id = intval($request['id']);
 
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = self::get_bookings_table();
+        $row = null;
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
             $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $booking_id), ARRAY_A);
-            if (!$row) {
-                return ZipBiz_REST_API::error_response('NOT_FOUND', 'Booking not found', 404);
-            }
+        }
 
-            $listing = get_post($row['listing_id']);
-            $owner_id = $listing ? $listing->post_author : 0;
+        if (!$row) {
+            return ZipBiz_REST_API::error_response('NOT_FOUND', 'Booking not found', 404);
+        }
 
-            if ($row['bookings_author'] != $user->ID && $owner_id != $user->ID && !current_user_can('manage_options')) {
-                return ZipBiz_REST_API::error_response('FORBIDDEN', 'Cannot cancel this booking', 403);
-            }
+        $listing = get_post($row['listing_id']);
+        $owner_id = $listing ? $listing->post_author : ($row['owner_id'] ?? 0);
 
+        if ($row['bookings_author'] != $user->ID && $owner_id != $user->ID && !current_user_can('manage_options')) {
+            return ZipBiz_REST_API::error_response('FORBIDDEN', 'Cannot cancel this booking', 403);
+        }
+
+        if (class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
+            Listeo_Core_Bookings_Calendar::set_booking_status($booking_id, 'cancelled');
+        } else {
             $wpdb->update($table_name, array('status' => 'cancelled'), array('id' => $booking_id));
         }
 
         // Notify other party
-        $comment_data = json_decode($row['comment'] ?? '{}', true);
-        $notify_target = ($user->ID == $row['bookings_author']) ? ($listing->post_author ?? 0) : $row['bookings_author'];
+        $notify_target = ($user->ID == $row['bookings_author']) ? $owner_id : $row['bookings_author'];
         ZipBiz_Notifications::send_push_notification(
             $notify_target,
             'Booking Cancelled',
@@ -444,7 +598,7 @@ class ZipBiz_Bookings {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
 
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = self::get_bookings_table();
         $status = sanitize_text_field($request->get_param('status') ?: 'all');
         $page = max(1, intval($request->get_param('page') ?: 1));
         $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
@@ -457,7 +611,7 @@ class ZipBiz_Bookings {
             } elseif ($status === 'completed') {
                 $where .= " AND status IN ('completed', 'finished')";
             } elseif ($status === 'cancelled') {
-                $where .= " AND status IN ('cancelled', 'rejected')";
+                $where .= " AND status IN ('cancelled', 'rejected', 'expired')";
             } else {
                 $where .= $wpdb->prepare(" AND status = %s", $status);
             }
@@ -473,7 +627,7 @@ class ZipBiz_Bookings {
                 if (!is_array($comment_data)) {
                     $comment_data = array();
                 }
-                $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: get_post_meta($listing->ID, '_featured_image_url', true) ?: '') : '';
+                $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: (get_post_meta($listing->ID, '_featured_image_url', true) ?: '')) : '';
                 $comment_str = (!empty($raw_comment) && is_string($raw_comment) && strpos($raw_comment, '{') !== false)
                     ? $raw_comment
                     : json_encode($comment_data ?: array('adults' => '1', 'service' => array()));
@@ -483,7 +637,8 @@ class ZipBiz_Bookings {
                     'booking_id'     => intval($r['id']),
                     'order_id'       => $r['order_id'] ?? 0,
                     'status'         => $r['status'],
-                    'price'          => floatval($r['price']),
+                    'price'          => strval($r['price']),
+                    'price_amount'   => floatval($r['price']),
                     'created'        => $r['created'],
                     'created_date'   => date('d M Y, h:i A', strtotime($r['created'])),
                     'date_start'     => $r['date_start'],
@@ -509,14 +664,15 @@ class ZipBiz_Bookings {
                 $b_data = get_post_meta($p->ID, '_booking_data', true) ?: array();
                 $lid = get_post_meta($p->ID, '_listing_id', true);
                 $listing = get_post($lid);
-                $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: get_post_meta($listing->ID, '_featured_image_url', true) ?: '') : '';
+                $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: (get_post_meta($listing->ID, '_featured_image_url', true) ?: '')) : '';
                 $comment_str = json_encode($b_data ?: array('adults' => '1', 'service' => array()));
 
                 $items[] = array_merge($b_data, array(
                     'id'             => $p->ID,
                     'booking_id'     => $p->ID,
                     'status'         => get_post_meta($p->ID, '_status', true) ?: 'waiting',
-                    'price'          => floatval(get_post_meta($p->ID, '_price', true) ?: 499),
+                    'price'          => strval(get_post_meta($p->ID, '_price', true) ?: '499'),
+                    'price_amount'   => floatval(get_post_meta($p->ID, '_price', true) ?: 499),
                     'created'        => $p->post_date,
                     'created_date'   => date('d M Y, h:i A', strtotime($p->post_date)),
                     'title'          => $listing ? $listing->post_title : $p->post_title,
@@ -547,7 +703,7 @@ class ZipBiz_Bookings {
         $vendor_id = intval($request->get_param('vendor_id'));
         $listing_id = intval($request->get_param('listing_id'));
 
-        $table_name = $wpdb->prefix . 'bookings';
+        $table_name = self::get_bookings_table();
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
             $query = "SELECT b.id FROM $table_name b 
                       LEFT JOIN {$wpdb->posts} p ON b.listing_id = p.ID 

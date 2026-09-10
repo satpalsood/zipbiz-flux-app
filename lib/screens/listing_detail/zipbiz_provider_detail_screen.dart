@@ -71,13 +71,15 @@ class _ZipBizProviderDetailScreenState
 
   String? get _heroImage {
     final p = widget.product;
-    if (p.imageFeature != null && p.imageFeature!.isNotEmpty && p.imageFeature != kDefaultImage) {
+    final defaultImg = kProductCard.defaultImage;
+    if (p.imageFeature != null && p.imageFeature!.isNotEmpty && p.imageFeature != kDefaultImage && p.imageFeature != defaultImg) {
       return p.imageFeature;
     }
-    if (p.images.isNotEmpty && p.images.first.isNotEmpty && p.images.first != kDefaultImage) {
-      return p.images.first;
+    if (p.images.isNotEmpty) {
+      final valid = p.images.firstWhere((img) => img.isNotEmpty && img != kDefaultImage && img != defaultImg, orElse: () => '');
+      if (valid.isNotEmpty) return valid;
     }
-    return null;
+    return p.imageFeature;
   }
 
   String? _getMeta(String key) {
@@ -639,7 +641,7 @@ class _ZipBizProviderDetailScreenState
                       Text('₹${_totalSelectedPrice.toStringAsFixed(0)}', style: ZipBizTypography.headlineMedium.copyWith(color: ZipBizColors.primary, fontWeight: FontWeight.bold, fontSize: 18)),
                     ],
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 12),
                   // Message Pro Button (Unlocked only once customer has a booked & confirmed order)
                   if (_hasConfirmedBooking)
                     OutlinedButton.icon(
@@ -692,8 +694,9 @@ class _ZipBizProviderDetailScreenState
                     child: ZipBizButton(
                       text: 'Book Service',
                       icon: Icons.calendar_month,
-                      height: 48,
+                      height: 50,
                       borderRadius: 12,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       onPressed: () {
                         final selectedItems = _packages
                             .where((pkg) => _selectedPackageNames.contains(pkg['name']))

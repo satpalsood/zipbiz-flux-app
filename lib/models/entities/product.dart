@@ -1965,54 +1965,108 @@ class Product {
         }
       }
 
+      images = [];
       var list = Tools.getValueByKey(
           json, DataMapping().kProductDataMapping['gallery']);
 
-      if (list == null || list is bool || list.isEmpty) {
-        images = [];
-      } else {
-        list.forEach((element) => images.add(element));
+      if (list is List && list.isNotEmpty) {
+        for (var element in list) {
+          if (element is String && element.isNotEmpty) {
+            images.add(element);
+          } else if (element is Map && element['url'] is String) {
+            images.add(element['url']);
+          }
+        }
       }
 
-      var featureImage = Tools.getValueByKey(
-          json, DataMapping().kProductDataMapping['featured_media']);
-
-      if (featureImage == null ||
-          featureImage is bool ||
-          featureImage.isEmpty) {
-        imageFeature = null;
-      } else if (featureImage is String) {
-        imageFeature = featureImage;
-      } else if (featureImage is List) {
-        imageFeature = featureImage.firstOrNull;
-      }
-      _prepareImage();
-      if (imageFeature == kDefaultImage) {
-        var imgJson = json['better_featured_image'];
-        if (imgJson != null) {
-          if (imgJson['media_details']?['sizes']?['large'] != null) {
-            imageFeature =
-                imgJson['media_details']?['sizes']?['large']?['source_url'];
-            if (images.isEmpty) {
-              images.add(imageFeature!);
+      // Check alternative gallery keys
+      for (final gKey in ['gallery_images', 'gallery', '_gallery']) {
+        final gVal = json[gKey] ?? json['listing_data']?[gKey];
+        if (gVal is List) {
+          for (var element in gVal) {
+            if (element is String && element.startsWith('http') && !images.contains(element)) {
+              images.add(element);
+            } else if (element is Map && element['url'] is String && !images.contains(element['url'])) {
+              images.add(element['url']);
             }
           }
         }
       }
-      if (imageFeature == null || imageFeature == kDefaultImage || imageFeature!.isEmpty) {
-        if (json['featured_image'] is String && (json['featured_image'] as String).isNotEmpty) {
-          imageFeature = json['featured_image'];
-        } else if (json['featured_image_url'] is String && (json['featured_image_url'] as String).isNotEmpty) {
-          imageFeature = json['featured_image_url'];
-        } else if (json['image'] is String && (json['image'] as String).isNotEmpty) {
-          imageFeature = json['image'];
-        } else if (json['listing_data'] is Map && json['listing_data']['_featured_image_url'] is String) {
-          imageFeature = json['listing_data']['_featured_image_url'];
+
+      imageFeature = null;
+      var featureImage = Tools.getValueByKey(
+          json, DataMapping().kProductDataMapping['featured_media']);
+
+      if (featureImage is String && featureImage.isNotEmpty && featureImage != kDefaultImage) {
+        imageFeature = featureImage;
+      } else if (featureImage is List && featureImage.isNotEmpty) {
+        final first = featureImage.firstOrNull;
+        if (first is String && first.isNotEmpty && first != kDefaultImage) {
+          imageFeature = first;
         }
       }
+
+      // 1. Check _embedded['wp:featuredmedia']
+      if (imageFeature == null || imageFeature!.isEmpty || imageFeature == kDefaultImage) {
+        try {
+          final embedded = json['_embedded'];
+          if (embedded is Map && embedded['wp:featuredmedia'] is List && (embedded['wp:featuredmedia'] as List).isNotEmpty) {
+            final media = (embedded['wp:featuredmedia'] as List).first;
+            if (media is Map) {
+              final src = media['source_url'] ??
+                  media['media_details']?['sizes']?['large']?['source_url'] ??
+                  media['media_details']?['sizes']?['full']?['source_url'] ??
+                  media['media_details']?['sizes']?['medium']?['source_url'];
+              if (src is String && src.isNotEmpty) {
+                imageFeature = src;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Check better_featured_image
+      if (imageFeature == null || imageFeature!.isEmpty || imageFeature == kDefaultImage) {
+        var imgJson = json['better_featured_image'];
+        if (imgJson is Map) {
+          final src = imgJson['source_url'] ??
+              imgJson['media_details']?['sizes']?['large']?['source_url'] ??
+              imgJson['media_details']?['sizes']?['full']?['source_url'];
+          if (src is String && src.isNotEmpty) {
+            imageFeature = src;
+          }
+        }
+      }
+
+      // 3. Check direct featured image fields
+      if (imageFeature == null || imageFeature == kDefaultImage || imageFeature!.isEmpty) {
+        for (final k in ['featured_image', 'featured_image_url', 'image']) {
+          final val = json[k] ?? json['listing_data']?[k];
+          if (val is String && val.startsWith('http')) {
+            imageFeature = val;
+            break;
+          }
+        }
+        if (imageFeature == null && json['listing_data'] is Map) {
+          final val = json['listing_data']['_featured_image_url'];
+          if (val is String && val.startsWith('http')) {
+            imageFeature = val;
+          }
+        }
+      }
+
+      // 4. If imageFeature still missing, take first from images
+      if ((imageFeature == null || imageFeature!.isEmpty || imageFeature == kDefaultImage) && images.isNotEmpty) {
+        imageFeature = images.first;
+      }
+
+      // 5. If images empty but imageFeature found, add to images
       if (images.isEmpty && imageFeature != null && imageFeature != kDefaultImage && imageFeature!.isNotEmpty) {
         images.add(imageFeature!);
       }
+
+      // 6. Finally apply default fallback only if completely missing
+      _prepareImage();
 
       final items =
           Tools.getValueByKey(json, DataMapping().kProductDataMapping['menu']);

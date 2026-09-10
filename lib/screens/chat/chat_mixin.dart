@@ -27,78 +27,42 @@ mixin ChatMixin<T extends StatefulWidget> on State<T> {
   /// so both firebase and gpt chat cases are hidden.
   bool get _supportChatProvider => !(ServerConfig().isHaravan);
 
-  /// List of supported smart chat options
+  /// List of supported smart chat options - strictly Call, WhatsApp, and Email
   List<Map> get supportedSmartChatOptions {
-    final result = [];
-
-    Map<String, dynamic> createItemResult({
-      String? app,
-      String? description,
-      IconData? iconData,
-      String? imageData,
-      ChatArguments? storeArguments,
-    }) {
-      return {
-        if (app != null) 'app': app,
-        if (description != null) 'description': description,
-        if (iconData != null) 'iconData': iconData,
-        if (imageData != null) 'imageData': imageData,
-        if (storeArguments != null) 'storeArguments': storeArguments,
-      };
-    }
+    final result = <Map>[];
 
     for (final option in kListSmartChat) {
-      final app = option['app']?.toString();
-      final item = createItemResult(
-        app: app,
-        description: option['description'] ?? '',
-        iconData: option['iconData'],
-        imageData: option['imageData'],
-      );
+      final app = option['app']?.toString().toLowerCase() ?? '';
+      final isCall = app.startsWith('tel:');
+      final isWhatsApp = app.contains('wa.me') || app.contains('whatsapp');
+      final isEmail = app.startsWith('mailto:');
 
-      // Check if the option is one of the supported chat providers and is
-      // enabled
-      final chatProvider = ChatProviders.fromString(app);
-      final isChatProviderExist =
-          _chatServices.checkProviderExist(provider: chatProvider);
-
-      if (isChatProviderExist && _supportChatProvider) {
-        final isChatProviderEnable =
-            _chatServices.checkProviderEnabled(provider: chatProvider);
-
-        if (isChatProviderEnable) {
-          result.add(item);
-        }
-        continue;
+      if (isCall || isWhatsApp || isEmail) {
+        result.add(Map<String, dynamic>.from(option));
       }
-
-      // Check for other chat options
-      switch (app) {
-        case 'firebase':
-          if (_firebaseService.isEnabled &&
-              kLoginSetting.enable &&
-              _supportChatProvider) {
-            item['description'] = option['description'] ?? S.of(context).chat;
-            break;
-          }
-          continue;
-
-        case 'store':
-          if (kConfigChat.realtimeChatConfig.enable &&
-              _firebaseService.isEnabled &&
-              kLoginSetting.enable &&
-              option['storeArguments'] is ChatArguments) {
-            item['storeArguments'] = option['storeArguments'];
-            break;
-          }
-          continue;
-
-        default:
-      }
-
-      result.add(item);
     }
-    return List<Map>.from(result);
+
+    if (result.isEmpty) {
+      result.addAll([
+        {
+          'app': 'tel:+917009218289',
+          'iconData': Icons.phone,
+          'description': 'Call (+91 70092 18289)',
+        },
+        {
+          'app': 'https://wa.me/917009218289',
+          'iconData': Icons.chat_bubble_outline,
+          'description': 'WhatsApp (+91 70092 18289)',
+        },
+        {
+          'app': 'mailto:support@zipbiz.in',
+          'iconData': Icons.email_outlined,
+          'description': 'Email (support@zipbiz.in)',
+        },
+      ]);
+    }
+
+    return result;
   }
 
   Future<void> onTapItem(

@@ -35,6 +35,7 @@ class ZipBizButton extends StatelessWidget {
         onPressed: isLoading ? null : onPressed,
         style: TextButton.styleFrom(
           padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          alignment: Alignment.center,
         ),
         child: Center(
           child: Text(
@@ -49,9 +50,12 @@ class ZipBizButton extends StatelessWidget {
     }
 
     if (type == ZipBizButtonType.outline) {
-      return SizedBox(
-        width: width,
-        height: height,
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: height,
+          minWidth: width ?? 0,
+          maxWidth: width ?? double.infinity,
+        ),
         child: OutlinedButton(
           onPressed: isLoading ? null : onPressed,
           style: OutlinedButton.styleFrom(
@@ -59,7 +63,8 @@ class ZipBizButton extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(borderRadius),
             ),
-            padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            alignment: Alignment.center,
           ),
           child: _buildChild(ZipBizColors.primaryContainer),
         ),
@@ -70,9 +75,12 @@ class ZipBizButton extends StatelessWidget {
     final bgColor = isSecondary ? ZipBizColors.secondary : ZipBizColors.primaryContainer;
     final fgColor = isSecondary ? ZipBizColors.onSecondary : ZipBizColors.onPrimary;
 
-    return SizedBox(
-      width: width,
-      height: height,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: height,
+        minWidth: width ?? 0,
+        maxWidth: width ?? double.infinity,
+      ),
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
@@ -82,7 +90,8 @@ class ZipBizButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
-          padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          alignment: Alignment.center,
         ),
         child: _buildChild(fgColor),
       ),
@@ -114,9 +123,10 @@ class ZipBizButton extends StatelessWidget {
               child: Text(
                 text,
                 textAlign: TextAlign.center,
-                maxLines: 1,
+                maxLines: 2,
+                softWrap: true,
                 overflow: TextOverflow.ellipsis,
-                style: ZipBizTypography.labelLarge.copyWith(color: color),
+                style: ZipBizTypography.labelLarge.copyWith(color: color, height: 1.2),
               ),
             ),
           ],
@@ -128,9 +138,10 @@ class ZipBizButton extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        maxLines: 1,
+        maxLines: 2,
+        softWrap: true,
         overflow: TextOverflow.ellipsis,
-        style: ZipBizTypography.labelLarge.copyWith(color: color),
+        style: ZipBizTypography.labelLarge.copyWith(color: color, height: 1.2),
       ),
     );
   }

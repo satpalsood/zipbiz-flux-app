@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flux_ui/flux_ui.dart';
 import 'package:provider/provider.dart';
 import '../../common/constants.dart';
 import '../../common/tools.dart';

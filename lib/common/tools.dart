@@ -1,5 +1,6 @@
 export 'package:gms_check/gms_check.dart' show GmsCheck;
 export 'package:inspireui/utils.dart' show HexColor, Videos, EncodeUtils;
+export 'package:flux_ui/flux_ui.dart' show Tools;
 
 export 'extensions/extensions.dart';
 export 'tools/app_tracking.dart';

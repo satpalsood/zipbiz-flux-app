@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../common/constants.dart';
-import '../../core/theme/zipbiz_colors.dart';
-import '../../core/theme/zipbiz_typography.dart';
+import '../../models/category/category_model.dart';
 import '../../models/entities/product.dart';
 import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
 import '../../services/index.dart';
-import '../../widgets/common/zipbiz_badge.dart';
-import '../../widgets/common/zipbiz_button.dart';
-import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_header.dart';
 
 class ZipBizServicesDirectoryScreen extends StatefulWidget {
@@ -24,24 +21,72 @@ class ZipBizServicesDirectoryScreen extends StatefulWidget {
 
 class _ZipBizServicesDirectoryScreenState
     extends State<ZipBizServicesDirectoryScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'all'; // 'all', 'booked', 'speed', 'emergency'
-  String? _selectedCategory;
-  String _selectedRegion = 'mohali';
-  bool _isLoading = false;
-  List<Product> _services = [];
+  // Region Selection (matches Home Screen)
+  String _selectedRegion = 'Chandigarh, Mohali, Kharar, Zirakpur';
+  final List<String> _regions = const [
+    'Chandigarh, Mohali, Kharar, Zirakpur',
+    'Chandigarh (All Sectors)',
+    'Mohali (Phase 1-11 & Aerocity)',
+    'Kharar & Sunny Enclave',
+    'Zirakpur & VIP Road',
+    'Panchkula',
+  ];
 
+  final TextEditingController _searchController = TextEditingController();
+  String? _selectedCategory;
+  bool _isLoading = false;
+  List<Product> _allServices = [];
+
+  // The 8 Listeo Service Categories
   final List<Map<String, dynamic>> _categories = [
-    {'name': 'Electrician', 'icon': Icons.bolt, 'color': Color(0xFFFFB693), 'iconColor': Color(0xFFA04100), 'count': '28'},
-    {'name': 'Plumber', 'icon': Icons.plumbing, 'color': Color(0xFFD0E4FF), 'iconColor': Color(0xFF0062A1), 'count': '19'},
-    {'name': 'Cleaning', 'icon': Icons.cleaning_services, 'color': Color(0xFFEADDFF), 'iconColor': Color(0xFF6B4EA4), 'count': '42'},
-    {'name': 'Appliance', 'icon': Icons.build, 'color': Color(0xFFFFDAD6), 'iconColor': Color(0xFFBA1A1A), 'count': '31'},
-    {'name': 'Carpenter', 'icon': Icons.handyman, 'color': Color(0xFFFFDBCC), 'iconColor': Color(0xFF7A3000), 'count': '15'},
-    {'name': 'Maid Help', 'icon': Icons.dry_cleaning, 'color': Color(0xFFF6F3F2), 'iconColor': Color(0xFF5A4136), 'count': '24'},
-    {'name': 'Gardening', 'icon': Icons.yard, 'color': Color(0xFFE8F5E9), 'iconColor': Color(0xFF2E7D32), 'count': '12'},
-    {'name': 'Caregiver', 'icon': Icons.volunteer_activism, 'color': Color(0xFFFCE4EC), 'iconColor': Color(0xFFC2185B), 'count': '8'},
-    {'name': 'Home Salon', 'icon': Icons.face_retouching_natural, 'color': Color(0xFFF3E5F5), 'iconColor': Color(0xFF7B1FA2), 'count': '18'},
-    {'name': 'Pest Control', 'icon': Icons.pest_control, 'color': Color(0xFFFFF3E0), 'iconColor': Color(0xFFE65100), 'count': '14'},
+    {
+      'name': 'Electrician',
+      'icon': Icons.bolt,
+      'bg': const Color(0xFFFEF3C7),
+      'iconColor': const Color(0xFFD97706),
+    },
+    {
+      'name': 'Plumber',
+      'icon': Icons.plumbing,
+      'bg': const Color(0xFFE0F2FE),
+      'iconColor': const Color(0xFF0284C7),
+    },
+    {
+      'name': 'Cleaner',
+      'icon': Icons.cleaning_services,
+      'bg': const Color(0xFFFFEDD5),
+      'iconColor': const Color(0xFFFF6B00),
+    },
+    {
+      'name': 'Home Salon',
+      'icon': Icons.face_retouching_natural,
+      'bg': const Color(0xFFF3E8FF),
+      'iconColor': const Color(0xFF7E22CE),
+    },
+    {
+      'name': 'Appliance',
+      'icon': Icons.build,
+      'bg': const Color(0xFFDBEAFE),
+      'iconColor': const Color(0xFF1D4ED8),
+    },
+    {
+      'name': 'Carpenter',
+      'icon': Icons.handyman,
+      'bg': const Color(0xFFFEF9C3),
+      'iconColor': const Color(0xFF854D0E),
+    },
+    {
+      'name': 'Maid',
+      'icon': Icons.dry_cleaning,
+      'bg': const Color(0xFFFFE4E6),
+      'iconColor': const Color(0xFFE11D48),
+    },
+    {
+      'name': 'Care Giver',
+      'icon': Icons.volunteer_activism,
+      'bg': const Color(0xFFD1FAE5),
+      'iconColor': const Color(0xFF047857),
+    },
   ];
 
   @override
@@ -54,88 +99,265 @@ class _ZipBizServicesDirectoryScreenState
   Future<void> _loadServices() async {
     setState(() => _isLoading = true);
     try {
+      // If a category is selected, find its corresponding Category ID from CategoryModel if loaded
+      String? categoryId;
+      if (_selectedCategory != null) {
+        final categoryModel =
+            Provider.of<CategoryModel>(context, listen: false);
+        final matched = categoryModel.categories?.firstWhere(
+          (c) =>
+              (c.name?.toLowerCase().trim() ==
+                  _selectedCategory!.toLowerCase().trim()) ||
+              (c.slug?.toLowerCase().trim() ==
+                  _selectedCategory!.toLowerCase().trim()),
+          orElse: () => null as dynamic,
+        );
+        if (matched != null) {
+          categoryId = matched.id;
+        }
+      }
+
+      final query = _searchController.text.trim();
       final results = await Services().api.fetchProductsByCategory(
         page: 1,
-        search: _searchController.text.isNotEmpty ? _searchController.text : null,
+        categoryId: categoryId,
+        search: query.isNotEmpty ? query : null,
       );
+
       if (mounted) {
         setState(() {
-          _services = results ?? [];
+          _allServices = results ?? [];
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
   }
 
+  List<Product> get _filteredServices {
+    if (_selectedCategory == null || _selectedCategory!.isEmpty) {
+      return _allServices;
+    }
+
+    final catLower = _selectedCategory!.toLowerCase();
+    final filtered = _allServices.where((p) {
+      final name = (p.name ?? '').toLowerCase();
+      final cat = (p.categoryName ?? '').toLowerCase();
+      final desc = (p.shortDescription ?? '').toLowerCase();
+      return name.contains(catLower) ||
+          cat.contains(catLower) ||
+          desc.contains(catLower);
+    }).toList();
+
+    return filtered.isNotEmpty ? filtered : _allServices;
+  }
+
+  void _showRegionPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Choose Service Area',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                ..._regions.map((reg) {
+                  final isSelected = _selectedRegion == reg;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      isSelected
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      color:
+                          isSelected ? const Color(0xFFFF6B00) : Colors.grey,
+                      size: 20,
+                    ),
+                    title: Text(
+                      reg,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected
+                            ? const Color(0xFFFF6B00)
+                            : const Color(0xFF1B1C1C),
+                      ),
+                    ),
+                    onTap: () {
+                      setState(() => _selectedRegion = reg);
+                      Navigator.pop(context);
+                      _loadServices();
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final services = _filteredServices;
+
     return Scaffold(
-      backgroundColor: ZipBizColors.surface,
+      backgroundColor: const Color(0xFFF9F9FB),
       appBar: const ZipBizTopHeader(showBackButton: true),
       body: RefreshIndicator(
         onRefresh: _loadServices,
-        color: ZipBizColors.primaryContainer,
+        color: const Color(0xFFFF6B00),
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // Region & Online Pros Banner
+            // 1. TOP SEARCH BAR (Exact match to Home Page)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: ZipBizColors.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE4E2E1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      const Icon(Icons.my_location, size: 20, color: ZipBizColors.primaryContainer),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Service Area', style: ZipBizTypography.labelSmall),
-                            DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _selectedRegion,
-                                isDense: true,
-                                icon: const Icon(Icons.keyboard_arrow_down, size: 18),
-                                items: const [
-                                  DropdownMenuItem(value: 'mohali', child: Text('Mohali (Phases 1-11)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                                  DropdownMenuItem(value: 'chandigarh', child: Text('Chandigarh (Sec 1-45)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                                  DropdownMenuItem(value: 'kharar', child: Text('Kharar & Sunny Enclave', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                                  DropdownMenuItem(value: 'zirakpur', child: Text('Zirakpur & VIP Road', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _selectedRegion = val);
-                                    _loadServices();
-                                  }
-                                },
+                      // Region Selector
+                      GestureDetector(
+                        onTap: _showRegionPicker,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F7),
+                            borderRadius: BorderRadius.circular(10),
+                            border:
+                                Border.all(color: const Color(0xFFE4E2E1)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.explore,
+                                  size: 18, color: Color(0xFFFF6B00)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'SELECT REGION',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF5A4136),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      _selectedRegion,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF1B1C1C),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                              const Icon(Icons.unfold_more,
+                                  size: 16, color: Color(0xFF5A4136)),
+                            ],
+                          ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: ZipBizColors.secondaryFixed.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(width: 6, height: 6, decoration: const BoxDecoration(color: ZipBizColors.statusOpen, shape: BoxShape.circle)),
-                            const SizedBox(width: 5),
-                            Text('142 Pros Online', style: ZipBizTypography.labelSmall.copyWith(color: ZipBizColors.onSecondaryFixed, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
+                      const SizedBox(height: 8),
+
+                      // Search Input & Search Button
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF5F5F7),
+                                borderRadius: BorderRadius.circular(10),
+                                border:
+                                    Border.all(color: const Color(0xFFE4E2E1)),
+                              ),
+                              child: TextField(
+                                controller: _searchController,
+                                onSubmitted: (_) => _loadServices(),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Color(0xFF1B1C1C)),
+                                decoration: const InputDecoration(
+                                  hintText:
+                                      'Search Electrician, Plumber, Maid...',
+                                  hintStyle: TextStyle(
+                                      fontSize: 11, color: Color(0xFF8E7164)),
+                                  prefixIcon: Icon(Icons.search,
+                                      size: 18, color: Color(0xFF5A4136)),
+                                  border: InputBorder.none,
+                                  contentPadding:
+                                      EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: _loadServices,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF6B00),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            icon: const Icon(Icons.search, size: 16),
+                            label: const Text(
+                              'Search',
+                              style: TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -143,379 +365,498 @@ class _ZipBizServicesDirectoryScreenState
               ),
             ),
 
-            // Search Bar with Search CTA
+            // 2. SERVICE CATEGORIES SELECTOR (The 8 Listeo Categories)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: ZipBizColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2)),
-                          ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Service Categories',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1B1C1C),
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.search, color: ZipBizColors.outline, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                style: const TextStyle(fontSize: 14),
-                                decoration: const InputDecoration(
-                                  hintText: 'Search Electrician, Plumber, Cleaner...',
-                                  hintStyle: TextStyle(fontSize: 13, color: Colors.grey),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(vertical: 12),
-                                ),
-                                onSubmitted: (_) => _loadServices(),
+                        if (_selectedCategory != null)
+                          GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedCategory = null);
+                              _loadServices();
+                            },
+                            child: const Text(
+                              'Clear Filter',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFFF6B00),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Categories Grid (4 x 2)
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _categories.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 0.9,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ZipBizButton(
-                      text: 'Search',
-                      onPressed: _loadServices,
-                      height: 44,
-                      borderRadius: 12,
+                      itemBuilder: (context, index) {
+                        final cat = _categories[index];
+                        final isSelected = (_selectedCategory == cat['name']);
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory =
+                                  isSelected ? null : cat['name'];
+                            });
+                            _loadServices();
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFFFF6B00).withOpacity(0.08)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFFFF6B00)
+                                    : const Color(0xFFE4E2E1),
+                                width: isSelected ? 1.8 : 1.0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.02),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: cat['bg'] as Color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    cat['icon'] as IconData,
+                                    color: cat['iconColor'] as Color,
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  cat['name'] as String,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: isSelected
+                                        ? const Color(0xFFFF6B00)
+                                        : const Color(0xFF1B1C1C),
+                                    height: 1.1,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
             ),
 
-            // Horizontal Filter Chips
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 42,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    _buildFilterChip('All Services', 'all', null),
-                    _buildFilterChip('Most Booked', 'booked', Icons.local_fire_department),
-                    _buildFilterChip('Quickest 15m', 'speed', Icons.bolt),
-                    _buildFilterChip('Emergency', 'emergency', Icons.emergency),
-                  ],
-                ),
-              ),
-            ),
-
-            // Categories Section Header
+            // 3. ALL LISTINGS HEADER
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Explore Categories', style: ZipBizTypography.headlineSmall),
-                        const SizedBox(height: 2),
-                        Text('Verified technicians & home experts', style: ZipBizTypography.labelMedium),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: ZipBizColors.primaryFixed,
-                        borderRadius: BorderRadius.circular(12),
+                    Text(
+                      _selectedCategory != null
+                          ? '$_selectedCategory Services'
+                          : 'All Available Listings',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1B1C1C),
                       ),
-                      child: Text('All Types', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ZipBizColors.onPrimaryFixedVariant)),
+                    ),
+                    Text(
+                      '${services.length} Listed',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF5A4136),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
 
-            // Category Grid (5 columns x 2 rows)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 5,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 0.78,
-                  ),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, idx) {
-                    final cat = _categories[idx];
-                    final isSelected = (_selectedCategory == cat['name']);
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedCategory = isSelected ? null : cat['name'];
-                        });
-                        _loadServices();
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: isSelected ? ZipBizColors.primaryFixed : ZipBizColors.surfaceContainerLowest,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? ZipBizColors.primaryContainer : ZipBizColors.surfaceContainer,
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: cat['color'],
-                                  child: Icon(cat['icon'], size: 20, color: cat['iconColor']),
-                                ),
-                                Positioned(
-                                  top: -3,
-                                  right: -3,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: const BoxDecoration(
-                                      color: ZipBizColors.primaryContainer,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Text(
-                                      cat['count'],
-                                      style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              cat['name'],
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                color: ZipBizColors.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-            // Services List Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Available Services', style: ZipBizTypography.headlineSmall),
-                    Text('${_services.length} Listed', style: ZipBizTypography.labelMedium),
-                  ],
-                ),
-              ),
-            ),
-
-            // Services Items or Loading State
+            // 4. LISTINGS CONTENT (Zomato / Swiggy List Format)
             if (_isLoading)
               const SliverFillRemaining(
                 child: Center(
-                  child: CircularProgressIndicator(color: ZipBizColors.primaryContainer),
+                  child:
+                      CircularProgressIndicator(color: Color(0xFFFF6B00)),
                 ),
               )
-            else if (_services.isEmpty)
+            else if (services.isEmpty)
               SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.search_off, size: 54, color: Colors.grey.shade400),
+                      Icon(Icons.search_off,
+                          size: 54, color: Colors.grey.shade400),
                       const SizedBox(height: 12),
-                      Text('No services found', style: ZipBizTypography.headlineSmall.copyWith(color: Colors.grey.shade700)),
+                      Text(
+                        'No services found',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
                       const SizedBox(height: 6),
-                      Text('Try adjusting your search or region', style: ZipBizTypography.labelMedium),
+                      const Text(
+                        'Try clearing your category filter or adjusting your search query',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedCategory = null;
+                            _searchController.clear();
+                          });
+                          _loadServices();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF6B00),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('View All Listings'),
+                      ),
                     ],
                   ),
                 ),
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final item = _services[index];
-                      return _buildServiceCard(item);
+                      final item = services[index];
+                      return _buildZomatoStyleListCard(item);
                     },
-                    childCount: _services.length,
+                    childCount: services.length,
                   ),
                 ),
               ),
+
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 24),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, String key, IconData? icon) {
-    final isSelected = (_selectedFilter == key);
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        selected: isSelected,
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 14, color: isSelected ? Colors.white : ZipBizColors.primaryContainer),
-              const SizedBox(width: 4),
-            ],
-            Text(label),
-          ],
-        ),
-        labelStyle: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: isSelected ? Colors.white : ZipBizColors.onSurfaceVariant,
-        ),
-        backgroundColor: ZipBizColors.surfaceContainerLow,
-        selectedColor: ZipBizColors.secondary,
-        checkmarkColor: Colors.white,
-        showCheckmark: false,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        onSelected: (val) {
-          setState(() => _selectedFilter = key);
-          _loadServices();
-        },
-      ),
-    );
-  }
-
-  Widget _buildServiceCard(Product product) {
+  // =========================================================
+  // ZOMATO / SWIGGY STYLE LIST CARD
+  // =========================================================
+  Widget _buildZomatoStyleListCard(Product product) {
     final priceStr = (product.price != null && product.price!.isNotEmpty)
         ? '₹${product.price}'
         : (product.regularPrice != null && product.regularPrice!.isNotEmpty)
             ? '₹${product.regularPrice}'
             : '₹499';
 
-    return ZipBizCard(
+    final rating = (product.averageRating != null && product.averageRating! > 0)
+        ? product.averageRating!.toStringAsFixed(1)
+        : '4.9';
+    final reviewCount = product.totalReview ?? 18;
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      onTap: () {
-        FluxNavigate.pushNamed(
-          RouteList.productDetail,
-          arguments: product,
-          context: context,
-        );
-      },
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: (product.imageFeature != null && product.imageFeature!.isNotEmpty)
-                ? Image.network(
-                    product.imageFeature!,
-                    width: 85,
-                    height: 85,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildPlaceholder(),
-                  )
-                : _buildPlaceholder(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE4E2E1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            FluxNavigate.pushNamed(
+              RouteList.productDetail,
+              arguments: product,
+              context: context,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product.name ?? 'Service',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: ZipBizTypography.labelLarge.copyWith(fontSize: 15),
-                      ),
-                    ),
-                    const Icon(Icons.verified, size: 16, color: ZipBizColors.primaryContainer),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${product.averageRating ?? 4.9} (${product.totalReview ?? 12})',
-                      style: ZipBizTypography.labelSmall.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('•', style: TextStyle(color: Colors.grey)),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.schedule, size: 12, color: Colors.grey),
-                    const SizedBox(width: 2),
-                    const Text('45 mins', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                // Left: 95x95 Rounded Image Thumbnail with Badge
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 95,
+                    height: 95,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text('Starts at', style: ZipBizTypography.labelSmall.copyWith(fontSize: 10)),
-                        Text(priceStr, style: ZipBizTypography.labelLarge.copyWith(color: ZipBizColors.primary, fontWeight: FontWeight.bold)),
+                        (product.imageFeature != null &&
+                                product.imageFeature!.isNotEmpty)
+                            ? Image.network(
+                                product.imageFeature!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _buildImagePlaceholder(),
+                              )
+                            : _buildImagePlaceholder(),
+                        // Verified badge on image
+                        Positioned(
+                          top: 6,
+                          left: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.65),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.verified,
+                                    size: 10, color: Color(0xFFFF6B00)),
+                                SizedBox(width: 3),
+                                Text(
+                                  'VERIFIED',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    ZipBizButton(
-                      text: 'Book Now',
-                      height: 32,
-                      borderRadius: 8,
-                      onPressed: () {
-                        FluxNavigate.pushNamed(
-                          RouteList.productDetail,
-                          arguments: product,
-                          context: context,
-                        );
-                      },
-                    ),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Right: Details (Title, Rating, Category, Price & Book CTA)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        product.name ?? 'ZipBiz Service Partner',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1B1C1C),
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Rating & Reviews Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF047857),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  rating,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(Icons.star,
+                                    size: 11, color: Colors.white),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '($reviewCount reviews)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text('•',
+                              style: TextStyle(color: Colors.grey)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              product.categoryName ?? 'Expert Service',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Price & Book Button Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Starts at',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                priceStr,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFFF6B00),
+                                ),
+                              ),
+                            ],
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              FluxNavigate.pushNamed(
+                                RouteList.productDetail,
+                                arguments: product,
+                                context: context,
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF6B00),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 7),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Text(
+                                  'Book',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(width: 4),
+                                Icon(Icons.arrow_forward, size: 13),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildPlaceholder() {
+  Widget _buildImagePlaceholder() {
     return Container(
-      width: 85,
-      height: 85,
-      color: ZipBizColors.surfaceContainer,
-      child: const Icon(Icons.home_repair_service, color: ZipBizColors.outline, size: 28),
+      color: const Color(0xFFF3F4F6),
+      child: const Center(
+        child: Icon(
+          Icons.home_repair_service,
+          color: Color(0xFF9CA3AF),
+          size: 32,
+        ),
+      ),
     );
   }
 }

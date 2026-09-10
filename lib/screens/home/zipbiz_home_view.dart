@@ -131,12 +131,50 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
 
   void _navigateToCategory(String categoryName) {
     FluxNavigate.pushNamed(
-      RouteList.backdrop,
-      arguments: BackDropArguments(
-        cateName: categoryName,
-      ),
+      RouteList.category,
+      arguments: categoryName,
       context: context,
     );
+  }
+
+  Future<void> _openServiceBySlug(
+      String slug, String fallbackTitle, String webUrl) async {
+    Product? matched;
+    for (final p in [..._popularServices, ..._popularProviders]) {
+      if ((p.permalink ?? '').contains(slug) ||
+          (p.name ?? '').toLowerCase().contains(fallbackTitle.toLowerCase())) {
+        matched = p;
+        break;
+      }
+    }
+
+    if (matched != null) {
+      FluxNavigate.pushNamed(
+        RouteList.productDetail,
+        arguments: matched,
+        context: context,
+      );
+      return;
+    }
+
+    try {
+      final results = await Services().api.fetchProductsByCategory(
+        page: 1,
+        search: fallbackTitle,
+      );
+      if (results != null && results.isNotEmpty) {
+        if (mounted) {
+          FluxNavigate.pushNamed(
+            RouteList.productDetail,
+            arguments: results.first,
+            context: context,
+          );
+          return;
+        }
+      }
+    } catch (_) {}
+
+    await Tools.launchURL(webUrl);
   }
 
   void _openBooking(Product? product) {
@@ -202,11 +240,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                   _buildPopularProvidersSlider(context, theme),
                   const SizedBox(height: 24),
 
-                  // 7. DEDICATED SLIDING SECTIONS FOR EACH TRADE
-                  _buildTradeSliders(context, theme),
-                  const SizedBox(height: 24),
-
-                  // 8. PROMOTIONAL OFFERS & GUARANTEES
+                  // 7. PROMOTIONAL OFFERS & GUARANTEES
                   _buildPromotionalOffers(context, theme),
                   const SizedBox(height: 24),
 
@@ -788,57 +822,58 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   // 5. SLIDING SECTION: POPULAR SERVICES
   // ==========================================
   Widget _buildPopularServicesSlider(BuildContext context, ThemeData theme) {
-    // Fallback curated services if API list is empty
-    final defaultServices = [
+    final popularServices5 = [
       {
-        'title': 'Full Home Deep Cleaning',
-        'rating': '4.9 (1.2k)',
+        'title': '2 Hours Maid Service',
+        'rating': '4.9 (520)',
+        'duration': '2 hrs',
+        'price': '₹299',
+        'oldPrice': '₹399',
+        'image':
+            'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80',
+        'type': 'maid',
+      },
+      {
+        'title': '4 Hours Maid Service',
+        'rating': '4.9 (780)',
+        'duration': '4 hrs',
+        'price': '₹499',
+        'oldPrice': '₹699',
+        'image':
+            'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=500&q=80',
+        'type': 'maid',
+      },
+      {
+        'title': '3 Bathroom cleaning',
+        'rating': '4.8 (640)',
+        'duration': '2-3 hrs',
+        'price': '₹799',
+        'oldPrice': '₹1,099',
+        'image':
+            'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&q=80',
+        'type': 'cleaning',
+      },
+      {
+        'title': 'Full 2BHK Home Deep Cleaning',
+        'rating': '4.9 (1.1k)',
         'duration': '4-5 hrs',
         'price': '₹1,499',
         'oldPrice': '₹1,999',
         'image':
-            'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80',
+            'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&q=80',
+        'type': 'cleaning',
       },
       {
-        'title': 'AC Comprehensive Service',
-        'rating': '4.8 (890)',
-        'duration': '60 mins',
-        'price': '₹499',
-        'oldPrice': '₹799',
+        'title': 'Full 3BHK Home Deep Cleaning',
+        'rating': '4.9 (1.4k)',
+        'duration': '5-6 hrs',
+        'price': '₹1,999',
+        'oldPrice': '₹2,599',
         'image':
-            'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&q=80',
-      },
-      {
-        'title': 'Bathroom Deep Cleaning',
-        'rating': '4.7 (650)',
-        'duration': '90 mins',
-        'price': '₹399',
-        'oldPrice': '₹599',
-        'image':
-            'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&q=80',
-      },
-      {
-        'title': 'Kitchen Modular Cleaning',
-        'rating': '4.9 (430)',
-        'duration': '2 hrs',
-        'price': '₹699',
-        'oldPrice': '₹999',
-        'image':
-            'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=500&q=80',
-      },
-      {
-        'title': 'Water Purifier RO Repair',
-        'rating': '4.8 (310)',
-        'duration': '45 mins',
-        'price': '₹299',
-        'oldPrice': '₹450',
-        'image':
-            'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=500&q=80',
+            'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?w=500&q=80',
+        'type': 'cleaning',
       },
     ];
-
-    final hasLive = _popularServices.isNotEmpty;
-    final count = hasLive ? _popularServices.length : defaultServices.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,7 +899,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
               ],
             ),
             GestureDetector(
-              onTap: () => _navigateToSearch(),
+              onTap: () => FluxNavigate.pushNamed(RouteList.category, context: context),
               child: Row(
                 children: const [
                   Text(
@@ -883,218 +918,197 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         ),
         const SizedBox(height: 12),
 
-        // Horizontal Slider
+        // Horizontal Slider (5 services)
         SizedBox(
           height: 200,
-          child: _isLoadingServices
-              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: count,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    Product? liveProduct;
-                    String title;
-                    String rating;
-                    String duration;
-                    String price;
-                    String? oldPrice;
-                    String img;
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: popularServices5.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final item = popularServices5[index];
+              final title = item['title']!;
+              final rating = item['rating']!;
+              final duration = item['duration']!;
+              final price = item['price']!;
+              final oldPrice = item['oldPrice'];
+              final img = item['image']!;
+              final type = item['type']!;
 
-                    if (hasLive) {
-                      liveProduct = _popularServices[index];
-                      title = liveProduct.name ?? 'Service';
-                      rating = '${liveProduct.averageRating ?? 4.8}';
-                      duration = '30-60 mins';
-                      price = liveProduct.price?.isNotEmpty ?? false
-                          ? '₹${liveProduct.price}'
-                          : '₹499';
-                      oldPrice = liveProduct.regularPrice?.isNotEmpty ?? false
-                          ? '₹${liveProduct.regularPrice}'
-                          : null;
-                      img = liveProduct.imageFeature?.isNotEmpty ?? false
-                          ? liveProduct.imageFeature!
-                          : (liveProduct.images.isNotEmpty
-                              ? liveProduct.images.first
-                              : defaultServices[index % defaultServices.length]['image']!);
-                    } else {
-                      final item = defaultServices[index];
-                      title = item['title']!;
-                      rating = item['rating']!;
-                      duration = item['duration']!;
-                      price = item['price']!;
-                      oldPrice = item['oldPrice'];
-                      img = item['image']!;
-                    }
+              void handleServiceTap() {
+                if (type == 'maid') {
+                  _openServiceBySlug(
+                    'zipbiz-maid-service',
+                    'Zipbiz Maid Service',
+                    'https://zipbiz.in/business/zipbiz-maid-service/',
+                  );
+                } else {
+                  _openServiceBySlug(
+                    'zipbiz-cleaning-services',
+                    'Zipbiz Cleaning Service',
+                    'https://zipbiz.in/business/zipbiz-cleaning-services/',
+                  );
+                }
+              }
 
-                    return GestureDetector(
-                      onTap: () {
-                        if (liveProduct != null) {
-                          FluxNavigate.pushNamed(
-                            RouteList.productDetail,
-                            arguments: liveProduct,
-                            context: context,
-                          );
-                        } else {
-                          _openBooking(null);
-                        }
-                      },
-                      child: Container(
-                        width: 170,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFE4E2E1)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Card Image with Rating Overlay
-                            Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                                  child: Image.network(
-                                    img,
-                                    height: 100,
-                                    width: 170,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      height: 100,
-                                      color: Colors.grey.shade200,
-                                      child: const Icon(Icons.cleaning_services, color: Colors.grey),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 6,
-                                  left: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.7),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.star, color: Colors.amber, size: 10),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          rating,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            // Content Details
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          title,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF1B1C1C),
-                                            height: 1.15,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.schedule, size: 10, color: Color(0xFF5A4136)),
-                                            const SizedBox(width: 3),
-                                            Text(
-                                              duration,
-                                              style: const TextStyle(
-                                                fontSize: 10,
-                                                color: Color(0xFF5A4136),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-
-                                    // Pricing & CTA
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              price,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFFFF6B00),
-                                              ),
-                                            ),
-                                            if (oldPrice != null) ...[
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                oldPrice,
-                                                style: const TextStyle(
-                                                  fontSize: 9,
-                                                  color: Colors.grey,
-                                                  decoration: TextDecoration.lineThrough,
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () => _openBooking(liveProduct),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFFFF6B00),
-                                            foregroundColor: Colors.white,
-                                            elevation: 0,
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                                            minimumSize: Size.zero,
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                          ),
-                                          child: const Text('Add', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+              return GestureDetector(
+                onTap: handleServiceTap,
+                child: Container(
+                  width: 170,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE4E2E1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Card Image with Rating Overlay
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                            child: Image.network(
+                              img,
+                              height: 100,
+                              width: 170,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 100,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.cleaning_services, color: Colors.grey),
                               ),
                             ),
-                          ],
+                          ),
+                          Positioned(
+                            top: 6,
+                            left: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.star, color: Colors.amber, size: 10),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    rating,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Content Details
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF1B1C1C),
+                                      height: 1.15,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.schedule, size: 10, color: Color(0xFF5A4136)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        duration,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Color(0xFF5A4136),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+
+                              // Pricing & CTA
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        price,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFFFF6B00),
+                                        ),
+                                      ),
+                                      if (oldPrice != null) ...[
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          oldPrice,
+                                          style: const TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.grey,
+                                            decoration: TextDecoration.lineThrough,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: handleServiceTap,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFF6B00),
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    child: const Text('Add', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
+              );
+            },
+          ),
         ),
         const SizedBox(height: 10),
 
@@ -1103,7 +1117,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
           width: double.infinity,
           height: 38,
           child: OutlinedButton(
-            onPressed: () => _navigateToSearch(),
+            onPressed: () => FluxNavigate.pushNamed(RouteList.category, context: context),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFFFF6B00)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1126,46 +1140,8 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   // 6. SLIDING SECTION: POPULAR SERVICE PROVIDERS
   // ==========================================
   Widget _buildPopularProvidersSlider(BuildContext context, ThemeData theme) {
-    final defaultProviders = [
-      {
-        'name': "Sunita's Cleaning",
-        'rating': '4.9 (128 reviews)',
-        'price': 'Starts ₹599',
-        'avatar':
-            'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&q=80',
-      },
-      {
-        'name': 'Rajesh Electrician',
-        'rating': '4.8 (124 reviews)',
-        'price': 'Starts ₹150',
-        'avatar':
-            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80',
-      },
-      {
-        'name': 'Kumar Carpentry',
-        'rating': '4.7 (85 reviews)',
-        'price': 'Starts ₹299',
-        'avatar':
-            'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80',
-      },
-      {
-        'name': 'TriCity Plumber',
-        'rating': '4.9 (110 reviews)',
-        'price': 'Starts ₹199',
-        'avatar':
-            'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=200&q=80',
-      },
-      {
-        'name': 'Home Care Nursing',
-        'rating': '4.9 (64 reviews)',
-        'price': 'Starts ₹799',
-        'avatar':
-            'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&q=80',
-      },
-    ];
-
     final hasLive = _popularProviders.isNotEmpty;
-    final count = hasLive ? _popularProviders.length : defaultProviders.length;
+    final count = hasLive ? _popularProviders.length : 5;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1191,7 +1167,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
               ],
             ),
             GestureDetector(
-              onTap: () => _navigateToSearch(),
+              onTap: () => FluxNavigate.pushNamed(RouteList.category, context: context),
               child: Row(
                 children: const [
                   Text(
@@ -1228,138 +1204,148 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
 
                     if (hasLive) {
                       liveProvider = _popularProviders[index];
-                      name = liveProvider.name ?? 'Verified Pro';
+                      name = liveProvider.name ?? 'Verified';
                       rating = '${liveProvider.averageRating ?? 4.9} (${liveProvider.ratingCount ?? 45} reviews)';
                       price = liveProvider.price?.isNotEmpty ?? false
                           ? 'Starts ₹${liveProvider.price}'
                           : 'Starts ₹199';
-                      avatar = liveProvider.imageFeature?.isNotEmpty ?? false
-                          ? liveProvider.imageFeature!
-                          : defaultProviders[index % defaultProviders.length]['avatar']!;
+                      avatar = liveProvider.imageFeature ?? '';
                     } else {
-                      final item = defaultProviders[index];
-                      name = item['name']!;
-                      rating = item['rating']!;
-                      price = item['price']!;
-                      avatar = item['avatar']!;
+                      name = 'Professional Partner';
+                      rating = '4.9 (100+ reviews)';
+                      price = 'Starts ₹199';
+                      avatar = '';
                     }
 
-                    return Container(
-                      width: 210,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE4E2E1)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: const Color(0xFF2E7D32), width: 1.5),
-                                ),
-                                child: ClipOval(
-                                  child: Image.network(
-                                    avatar,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.grey),
+                    void openProvider() {
+                      if (liveProvider != null) {
+                        FluxNavigate.pushNamed(
+                          RouteList.productDetail,
+                          arguments: liveProvider,
+                          context: context,
+                        );
+                      } else {
+                        FluxNavigate.pushNamed(RouteList.category, context: context);
+                      }
+                    }
+
+                    return GestureDetector(
+                      onTap: openProvider,
+                      child: Container(
+                        width: 210,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE4E2E1)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFF2E7D32), width: 1.5),
+                                  ),
+                                  child: ClipOval(
+                                    child: avatar.isNotEmpty
+                                        ? Image.network(avatar, fit: BoxFit.cover)
+                                        : const Icon(Icons.person, color: Colors.grey),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFD1FAE5),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(Icons.verified, size: 9, color: Color(0xFF047857)),
-                                          SizedBox(width: 2),
-                                          Text(
-                                            'Verified Pro',
-                                            style: TextStyle(
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFF047857),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFD1FAE5),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: const [
+                                            Icon(Icons.verified, size: 9, color: Color(0xFF047857)),
+                                            SizedBox(width: 2),
+                                            Text(
+                                              'Verified',
+                                              style: TextStyle(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF047857),
+                                              ),
                                             ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1B1C1C),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.star, size: 10, color: Colors.amber),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            rating,
+                                            style: const TextStyle(fontSize: 9, color: Color(0xFF5A4136)),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1B1C1C),
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.star, size: 10, color: Colors.amber),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          rating,
-                                          style: const TextStyle(fontSize: 9, color: Color(0xFF5A4136)),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                price,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1B1C1C),
+                              ],
+                            ),
+                            const Divider(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  price,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1B1C1C),
+                                  ),
                                 ),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => _openBooking(liveProvider),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFF6B00),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ElevatedButton(
+                                  onPressed: openProvider,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFF6B00),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  child: const Text('Book', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                                 ),
-                                child: const Text('Book Pro', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -1372,7 +1358,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
           width: double.infinity,
           height: 38,
           child: OutlinedButton(
-            onPressed: () => _navigateToSearch(),
+            onPressed: () => FluxNavigate.pushNamed(RouteList.category, context: context),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFF6B4EA4)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1392,296 +1378,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   }
 
   // ==========================================
-  // 7. DEDICATED SLIDERS FOR EACH TRADE
-  // ==========================================
-  Widget _buildTradeSliders(BuildContext context, ThemeData theme) {
-    final trades = [
-      {
-        'category': 'Electrician',
-        'title': 'Electrician Services',
-        'icon': Icons.bolt,
-        'iconBg': const Color(0xFFFEF3C7),
-        'iconColor': const Color(0xFFD97706),
-        'services': [
-          {'title': 'Fan Repair', 'duration': '30 mins', 'price': '₹149'},
-          {'title': 'Switch Replacement', 'duration': '20 mins', 'price': '₹99'},
-          {'title': 'MCB / Fuse Box Repair', 'duration': '45 mins', 'price': '₹249'},
-          {'title': 'Chandelier Light Install', 'duration': '40 mins', 'price': '₹199'},
-          {'title': 'Inverter Setup', 'duration': '60 mins', 'price': '₹499'},
-          {'title': 'Geyser Installation', 'duration': '45 mins', 'price': '₹399'},
-          {'title': 'Full House Rewiring', 'duration': 'Full Day', 'price': '₹2,499'},
-        ]
-      },
-      {
-        'category': 'Plumber',
-        'title': 'Plumber Services',
-        'icon': Icons.plumbing,
-        'iconBg': const Color(0xFFE0F2FE),
-        'iconColor': const Color(0xFF0284C7),
-        'services': [
-          {'title': 'Tap & Mixer Repair', 'duration': '30 mins', 'price': '₹129'},
-          {'title': 'Drain Clearing', 'duration': '45 mins', 'price': '₹299'},
-          {'title': 'Toilet Seat Install', 'duration': '60 mins', 'price': '₹349'},
-          {'title': 'Water Tank Cleaning', 'duration': '90 mins', 'price': '₹799'},
-          {'title': 'Pipe Leakage Fix', 'duration': '40 mins', 'price': '₹199'},
-          {'title': 'Shower Fitting', 'duration': '35 mins', 'price': '₹249'},
-        ]
-      },
-      {
-        'category': 'Carpenter',
-        'title': 'Carpenter Services',
-        'icon': Icons.handyman,
-        'iconBg': const Color(0xFFFEF9C3),
-        'iconColor': const Color(0xFF854D0E),
-        'services': [
-          {'title': 'Door Lock Repair', 'duration': '30 mins', 'price': '₹199'},
-          {'title': 'Furniture Assembly', 'duration': '90 mins', 'price': '₹499'},
-          {'title': 'Cupboard Hinge Fix', 'duration': '25 mins', 'price': '₹149'},
-          {'title': 'Wooden Partition', 'duration': '2 hrs', 'price': '₹599'},
-          {'title': 'Custom Shelves', 'duration': '2.5 hrs', 'price': '₹699'},
-          {'title': 'Bed Repair', 'duration': '60 mins', 'price': '₹399'},
-        ]
-      },
-      {
-        'category': 'Cleaner',
-        'title': 'Cleaner Services',
-        'icon': Icons.cleaning_services,
-        'iconBg': const Color(0xFFFFEDD5),
-        'iconColor': const Color(0xFFFF6B00),
-        'services': [
-          {'title': 'Balcony Deep Clean', 'duration': '45 mins', 'price': '₹299'},
-          {'title': 'Sofa & Carpet Shampoo', 'duration': '90 mins', 'price': '₹699'},
-          {'title': 'Kitchen Exhaust Clean', 'duration': '60 mins', 'price': '₹399'},
-          {'title': 'Floor Scrubbing', 'duration': '2 hrs', 'price': '₹499'},
-          {'title': 'Window Glass Polish', 'duration': '40 mins', 'price': '₹199'},
-          {'title': 'Sanitization Treatment', 'duration': '60 mins', 'price': '₹349'},
-        ]
-      },
-      {
-        'category': 'Maid',
-        'title': 'Maid Services',
-        'icon': Icons.dry_cleaning,
-        'iconBg': const Color(0xFFFFE4E6),
-        'iconColor': const Color(0xFFE11D48),
-        'services': [
-          {'title': 'Daily House Chores', 'duration': 'Per Visit', 'price': '₹299/day'},
-          {'title': 'Cooking & Prep', 'duration': 'Per Meal', 'price': '₹350/meal'},
-          {'title': 'Baby Care Assistance', 'duration': '4-8 hrs', 'price': '₹500/day'},
-          {'title': 'Elder Companionship', 'duration': 'Full Day', 'price': '₹600/day'},
-          {'title': 'Dishwashing Service', 'duration': 'Per Session', 'price': '₹150/day'},
-          {'title': 'Ironing & Laundry', 'duration': '60 mins', 'price': '₹200'},
-        ]
-      },
-      {
-        'category': 'Gardener',
-        'title': 'Gardener Services',
-        'icon': Icons.yard,
-        'iconBg': const Color(0xFFD1FAE5),
-        'iconColor': const Color(0xFF047857),
-        'services': [
-          {'title': 'Lawn Mowing & Weeding', 'duration': '60 mins', 'price': '₹399'},
-          {'title': 'Plant Pruning', 'duration': '45 mins', 'price': '₹299'},
-          {'title': 'Potting & Soil Prep', 'duration': '30 mins', 'price': '₹199'},
-          {'title': 'Pest Spray & Fertilize', 'duration': '45 mins', 'price': '₹249'},
-          {'title': 'Balcony Garden Setup', 'duration': '3 hrs', 'price': '₹799'},
-          {'title': 'Hedge Cutting', 'duration': '50 mins', 'price': '₹349'},
-        ]
-      },
-      {
-        'category': 'Care Giver',
-        'title': 'Care Services',
-        'icon': Icons.volunteer_activism,
-        'iconBg': const Color(0xFFCCFBF1),
-        'iconColor': const Color(0xFF0F766E),
-        'services': [
-          {'title': 'Post-Operative Care', 'duration': '12 hrs shift', 'price': '₹899/day'},
-          {'title': 'Elderly Nursing Care', 'duration': '24 hrs shift', 'price': '₹999/day'},
-          {'title': 'Physiotherapy at Home', 'duration': '45 mins', 'price': '₹650'},
-          {'title': 'Vital Check & Dressing', 'duration': '30 mins', 'price': '₹299'},
-          {'title': 'Medication Mgmt', 'duration': 'Weekly', 'price': '₹399'},
-        ]
-      },
-      {
-        'category': 'Appliance',
-        'title': 'Appliance Repair Services',
-        'icon': Icons.build,
-        'iconBg': const Color(0xFFDBEAFE),
-        'iconColor': const Color(0xFF1D4ED8),
-        'services': [
-          {'title': 'Washing Machine Fix', 'duration': '60 mins', 'price': '₹299'},
-          {'title': 'Fridge Gas Refill', 'duration': '90 mins', 'price': '₹599'},
-          {'title': 'Microwave Oven Fix', 'duration': '45 mins', 'price': '₹349'},
-          {'title': 'RO Water Purifier', 'duration': '45 mins', 'price': '₹299'},
-          {'title': 'Chimney Deep Service', 'duration': '60 mins', 'price': '₹499'},
-          {'title': 'TV Wall Mounting', 'duration': '30 mins', 'price': '₹249'},
-        ]
-      },
-    ];
-
-    return Column(
-      children: trades.map((trade) {
-        final tradeCat = trade['category'] as String;
-        final tradeTitle = trade['title'] as String;
-        final tradeIcon = trade['icon'] as IconData;
-        final iconBg = trade['iconBg'] as Color;
-        final iconColor = trade['iconColor'] as Color;
-        final services = trade['services'] as List<Map<String, String>>;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 22.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: iconBg,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(tradeIcon, color: iconColor, size: 16),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        tradeTitle,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1B1C1C),
-                        ),
-                      ),
-                    ],
-                  ),
-                  GestureDetector(
-                    onTap: () => _navigateToCategory(tradeCat),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0EDED),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        children: const [
-                          Text(
-                            'Explore',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF5A4136),
-                            ),
-                          ),
-                          Icon(Icons.chevron_right, size: 13, color: Color(0xFF5A4136)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Horizontal Scrollable Cards
-              SizedBox(
-                height: 110,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: services.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, idx) {
-                    final item = services[idx];
-                    return Container(
-                      width: 130,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE4E2E1)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item['duration']!,
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  color: Color(0xFF5A4136),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                item['title']!,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1B1C1C),
-                                  height: 1.15,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                item['price']!,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFFFF6B00),
-                                ),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => _openBooking(null),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFF6B00),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                ),
-                                child: const Text(
-                                  'Add',
-                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ==========================================
-  // 8. PROMOTIONAL OFFERS & GUARANTEES
+  // 7. PROMOTIONAL OFFERS & GUARANTEES (Cards Only, No Buttons)
   // ==========================================
   Widget _buildPromotionalOffers(BuildContext context, ThemeData theme) {
     final offers = [
@@ -1689,7 +1386,6 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         'badge': 'FESTIVAL SPECIAL',
         'title': 'Flat ₹150 OFF on Cleaning',
         'desc': 'Use code ZIPFEST on checkout',
-        'cta': 'Claim Offer',
         'gradient': const [Color(0xFFEA580C), Color(0xFFF59E0B)],
         'icon': Icons.savings,
       },
@@ -1697,7 +1393,6 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         'badge': 'LIMITED SLOT',
         'title': 'Free AC Inspection Visit',
         'desc': 'Zero diagnosis charges on first service',
-        'cta': 'Book Check',
         'gradient': const [Color(0xFF1D4ED8), Color(0xFF06B6D4)],
         'icon': Icons.ac_unit,
       },
@@ -1705,7 +1400,6 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         'badge': 'TRUST & QUALITY',
         'title': '100% Satisfaction Guarantee',
         'desc': 'Verified Pros or free rework within 7 days',
-        'cta': 'Learn More',
         'gradient': const [Color(0xFF047857), Color(0xFF0D9488)],
         'icon': Icons.verified_user,
       },
@@ -1713,7 +1407,6 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         'badge': 'REFERRAL PROGRAM',
         'title': 'Earn ₹200 ZipCredits',
         'desc': 'Invite neighbors in Chandigarh & Mohali',
-        'cta': 'Invite Now',
         'gradient': const [Color(0xFF6B4EA4), Color(0xFF4338CA)],
         'icon': Icons.group_add,
       },
@@ -1739,7 +1432,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
         const SizedBox(height: 12),
 
         SizedBox(
-          height: 130,
+          height: 110,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: offers.length,
@@ -1777,58 +1470,38 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.25),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                offer['badge'] as String,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              offer['title'] as String,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              offer['desc'] as String,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                        ElevatedButton(
-                          onPressed: () => _navigateToSearch(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF1B1C1C),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.25),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            offer['cta'] as String,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                            offer['badge'] as String,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          offer['title'] as String,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          offer['desc'] as String,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
                           ),
                         ),
                       ],
@@ -1844,7 +1517,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   }
 
   // ==========================================
-  // 9. SERVICE PROVIDER RECRUITMENT BANNER
+  // 8. SERVICE PROVIDER RECRUITMENT BANNER
   // ==========================================
   Widget _buildPartnerRecruitmentBanner(BuildContext context) {
     return Container(
@@ -1913,8 +1586,8 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                onPressed: () async {
-                  await Tools.launchURL('https://zipbiz.in');
+                onPressed: () {
+                  FluxNavigate.pushNamed(RouteList.register, context: context);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF6B00),

@@ -363,9 +363,19 @@ class Routes {
         }
         return _errorRoute();
       case RouteList.category:
+      case 'category':
+        final args = settings.arguments;
+        String? cat;
+        if (args is String) {
+          cat = args;
+        } else if (args is Map) {
+          cat = (args['category'] ?? args['name'] ?? args['cateName'])?.toString();
+        } else if (args is BackDropArguments) {
+          cat = args.cateName;
+        }
         return _buildRoute(
           settings,
-          (_) => const ZipBizServicesDirectoryScreen(),
+          (_) => ZipBizServicesDirectoryScreen(initialCategory: cat),
         );
       case RouteList.categorySearch:
         return _buildRouteFade(
@@ -455,7 +465,7 @@ class Routes {
       case 'smartchat':
         return _buildRoute(
           settings,
-          (_) => const ZipBizChatScreen(),
+          (_) => const ZipBizServicesDirectoryScreen(),
         );
       // No usage on this Route found
       // case RouteList.blog:

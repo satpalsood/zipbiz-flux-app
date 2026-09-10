@@ -24,7 +24,7 @@ class ZipBizBookingsDashboardScreen extends StatefulWidget {
 
 class _ZipBizBookingsDashboardScreenState
     extends State<ZipBizBookingsDashboardScreen> {
-  String _activeTab = 'ongoing'; // 'ongoing', 'completed', 'cancelled'
+  String _activeTab = 'upcoming'; // 'upcoming', 'completed', 'cancelled'
   bool _isLoading = false;
   List<ListingBooking> _allBookings = [];
   final RefreshController _refreshController = RefreshController();
@@ -60,12 +60,13 @@ class _ZipBizBookingsDashboardScreenState
   List<ListingBooking> get _filteredBookings {
     return _allBookings.where((b) {
       final status = (b.status ?? '').toLowerCase();
-      if (_activeTab == 'ongoing') {
+      if (_activeTab == 'upcoming') {
         return status.contains('confirm') ||
             status.contains('wait') ||
             status.contains('pend') ||
             status.contains('progress') ||
             status.contains('paid') ||
+            status.contains('schedule') ||
             status.isEmpty;
       }
       if (_activeTab == 'completed') {
@@ -81,8 +82,14 @@ class _ZipBizBookingsDashboardScreenState
   int _countFor(String tab) {
     return _allBookings.where((b) {
       final status = (b.status ?? '').toLowerCase();
-      if (tab == 'ongoing') {
-        return status.contains('confirm') || status.contains('wait') || status.contains('pend') || status.contains('progress') || status.contains('paid') || status.isEmpty;
+      if (tab == 'upcoming') {
+        return status.contains('confirm') ||
+            status.contains('wait') ||
+            status.contains('pend') ||
+            status.contains('progress') ||
+            status.contains('paid') ||
+            status.contains('schedule') ||
+            status.isEmpty;
       }
       if (tab == 'completed') {
         return status.contains('complete') || status.contains('finish');
@@ -169,7 +176,7 @@ class _ZipBizBookingsDashboardScreenState
             ),
             child: Row(
               children: [
-                _buildSegmentButton('Ongoing & Scheduled', 'ongoing', _countFor('ongoing')),
+                _buildSegmentButton('Upcoming', 'upcoming', _countFor('upcoming')),
                 _buildSegmentButton('Completed', 'completed', _countFor('completed')),
                 _buildSegmentButton('Cancelled', 'cancelled', _countFor('cancelled')),
               ],
@@ -398,16 +405,50 @@ class _ZipBizBookingsDashboardScreenState
   }
 
   Widget _buildEmptyState() {
+    String message = 'No upcoming bookings';
+    if (_activeTab == 'completed') {
+      message = 'No completed bookings yet';
+    } else if (_activeTab == 'cancelled') {
+      message = 'No cancelled bookings';
+    }
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox, size: 48, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text('No ${_activeTab} bookings', style: ZipBizTypography.headlineSmall.copyWith(color: Colors.grey.shade700)),
-          const SizedBox(height: 6),
-          Text('Your scheduled services on ZipBiz will appear here', style: ZipBizTypography.bodySmall),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: ZipBizColors.surfaceContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey.shade400),
+            ),
+            const SizedBox(height: 16),
+            Text(message, style: ZipBizTypography.headlineSmall.copyWith(fontSize: 18, color: Colors.grey.shade800)),
+            const SizedBox(height: 8),
+            Text(
+              'Book trusted home services on ZipBiz with instant confirmation',
+              textAlign: TextAlign.center,
+              style: ZipBizTypography.bodySmall.copyWith(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.search, size: 18),
+              label: const Text('Book a Service', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZipBizColors.primaryContainer,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                FluxNavigate.pushNamed(RouteList.category, context: context);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,8 +8,7 @@ mixin ConfigRegisterMixin {
       kLoginSetting.requirePhoneNumberWhenRegister;
   bool get requireUsernameWhenRegister =>
       kLoginSetting.requireUsernameWhenRegister;
-  bool get isVendorRegister =>
-      kVendorConfig.vendorRegister && ServerConfig().isVendorType();
+  bool get isVendorRegister => true;
   bool get isDeliveryRegister =>
       kVendorConfig.deliveryRegister && ServerConfig().isDeliverySupported;
 }

@@ -287,7 +287,7 @@
       "label": "Home"
     },
     {
-      "layout": "search",
+      "layout": "category",
       "icon": "assets/icons/tabs/icon-lists.png",
       "label": "Services"
     },
@@ -297,15 +297,10 @@
       "label": "Bookings"
     },
     {
-      "layout": "chat",
-      "icon": "assets/icons/tabs/icon-videos.png",
-      "label": "Chat"
-    },
-    {
       "layout": "profile",
       "icon": "assets/icons/tabs/icon-user.png",
       "label": "Account",
-      "showChat": true,
+      "showChat": false,
       "showBackground": true,
       "styleItem": "listTile",
       "settingStyle": "normal"

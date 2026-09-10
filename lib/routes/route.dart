@@ -581,12 +581,8 @@ class Routes {
         return _errorRoute();
 
       case RouteList.vendorAdmin:
-        final data = settings.arguments;
-        if (data is User) {
-          return _buildRoute(settings,
-              (context) => Services().widget.renderVendorAdmin(context, data));
-        }
-        return _errorRoute();
+        return _buildRoute(settings,
+            (context) => const ZipBizVendorDashboardScreen());
       case RouteList.delivery:
         final data = settings.arguments;
         if (data is User) {

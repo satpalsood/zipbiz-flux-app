@@ -1,0 +1,1132 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/api/zipbiz_api_service.dart';
+import '../../core/theme/zipbiz_colors.dart';
+import '../../core/theme/zipbiz_typography.dart';
+import '../../models/user_model.dart';
+import '../../widgets/common/zipbiz_button.dart';
+import '../../widgets/common/zipbiz_card.dart';
+import '../../widgets/common/zipbiz_header.dart';
+
+class ZipBizAddEditListingScreen extends StatefulWidget {
+  final Map<String, dynamic>? initialListing;
+
+  const ZipBizAddEditListingScreen({super.key, this.initialListing});
+
+  @override
+  State<ZipBizAddEditListingScreen> createState() =>
+      _ZipBizAddEditListingScreenState();
+}
+
+class _ZipBizAddEditListingScreenState
+    extends State<ZipBizAddEditListingScreen> {
+  int _currentStep = 0;
+  bool _isSubmitting = false;
+
+  // Step 1: Listing Type
+  String _listingType = 'service'; // 'service', 'rent', 'others'
+
+  // Step 2: Basic Info
+  final _titleController = TextEditingController();
+  String _selectedCategory = 'Electrician';
+  final _subCategoryController = TextEditingController();
+  final _keywordsController = TextEditingController();
+  final _logoUrlController = TextEditingController();
+
+  final List<String> _categories = [
+    'Electrician',
+    'Plumber',
+    'Cleaning',
+    'Maid Service',
+    'AC Repair',
+    'Carpentry',
+    'Painting',
+    'Pest Control',
+    'Appliance Repair',
+    'Other Services',
+  ];
+
+  // Step 3: Location
+  final _addressController = TextEditingController();
+  final _friendlyAddressController = TextEditingController();
+  String _selectedRegion = 'Mohali';
+  final _serviceAreaController = TextEditingController();
+
+  final List<String> _regions = [
+    'Mohali',
+    'Chandigarh',
+    'Panchkula',
+    'Zirakpur',
+    'Kharar',
+    'New Chandigarh',
+  ];
+
+  // Step 4: Gallery
+  final List<String> _galleryImages = [];
+  final _newImageUrlController = TextEditingController();
+
+  // Step 5: Contact & Description
+  final _descriptionController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _websiteController = TextEditingController();
+
+  // Step 6: Opening Hours
+  final Map<String, Map<String, dynamic>> _openingHours = {
+    'Monday': {'open': true, 'from': '09:00 AM', 'to': '08:00 PM'},
+    'Tuesday': {'open': true, 'from': '09:00 AM', 'to': '08:00 PM'},
+    'Wednesday': {'open': true, 'from': '09:00 AM', 'to': '08:00 PM'},
+    'Thursday': {'open': true, 'from': '09:00 AM', 'to': '08:00 PM'},
+    'Friday': {'open': true, 'from': '09:00 AM', 'to': '08:00 PM'},
+    'Saturday': {'open': true, 'from': '09:00 AM', 'to': '08:00 PM'},
+    'Sunday': {'open': false, 'from': '09:00 AM', 'to': '08:00 PM'},
+  };
+
+  // Step 7: Pricing & Bookable Services
+  bool _bookingEnabled = true;
+  bool _slotsEnabled = true;
+  int _slotLimit = 5;
+  final _visitingFeeController = TextEditingController(text: '149');
+  final _inspectionFeeController = TextEditingController(text: '199');
+  final List<Map<String, dynamic>> _menuServices = [];
+
+  // Step 8: FAQ Section
+  bool _faqEnabled = true;
+  final List<Map<String, String>> _faqs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initDefaults();
+    if (widget.initialListing != null) {
+      _populateInitialData(widget.initialListing!);
+    }
+  }
+
+  void _initDefaults() {
+    _menuServices.add({
+      'name': 'Standard Inspection & Repair',
+      'price': '499',
+      'description': 'Full diagnostic and up to 1 hour standard service repair.',
+      'bookable': true,
+    });
+    _faqs.add({
+      'question': 'What is included in the visiting fee?',
+      'answer': 'The visiting fee covers travel and the initial diagnostic assessment at your doorstep.',
+    });
+  }
+
+  void _populateInitialData(Map<String, dynamic> item) {
+    _listingType = item['listing_type'] ?? 'service';
+    _titleController.text = item['title'] ?? '';
+    _selectedCategory = (item['categories'] is List && (item['categories'] as List).isNotEmpty)
+        ? item['categories'][0]['name'] ?? 'Electrician'
+        : 'Electrician';
+    _logoUrlController.text = item['featured_image'] ?? '';
+    _addressController.text = item['address'] ?? '';
+    _friendlyAddressController.text = item['friendly_address'] ?? '';
+    _selectedRegion = (item['regions'] is List && (item['regions'] as List).isNotEmpty)
+        ? item['regions'][0]['name'] ?? 'Mohali'
+        : 'Mohali';
+    _descriptionController.text = item['description'] ?? '';
+    _phoneController.text = item['phone'] ?? '';
+    _emailController.text = item['email'] ?? '';
+    _websiteController.text = item['website'] ?? '';
+    _visitingFeeController.text = '${item['visiting_fee'] ?? '149'}';
+    _inspectionFeeController.text = '${item['inspection_fee'] ?? '199'}';
+    _bookingEnabled = item['booking_status'] == 'on';
+    _slotsEnabled = item['slots_status'] == 'on';
+    _slotLimit = int.tryParse('${item['slot_limit']}') ?? 5;
+
+    if (item['gallery'] is List) {
+      _galleryImages.clear();
+      for (var img in (item['gallery'] as List)) {
+        if (img is String && img.isNotEmpty) _galleryImages.add(img);
+      }
+    }
+
+    if (item['menu'] is List) {
+      _menuServices.clear();
+      for (var group in (item['menu'] as List)) {
+        final elements = group['menu_elements'] ?? group['menu'];
+        if (elements is List) {
+          for (var elem in elements) {
+            _menuServices.add({
+              'name': elem['name'] ?? '',
+              'price': '${elem['price'] ?? ''}',
+              'description': elem['description'] ?? '',
+              'bookable': elem['bookable'] == 'on' || elem['bookable'] == true,
+            });
+          }
+        }
+      }
+    }
+
+    if (item['faq'] is List) {
+      _faqs.clear();
+      for (var f in (item['faq'] as List)) {
+        _faqs.add({
+          'question': f['question'] ?? '',
+          'answer': f['answer'] ?? '',
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _subCategoryController.dispose();
+    _keywordsController.dispose();
+    _logoUrlController.dispose();
+    _addressController.dispose();
+    _friendlyAddressController.dispose();
+    _serviceAreaController.dispose();
+    _newImageUrlController.dispose();
+    _descriptionController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _websiteController.dispose();
+    _visitingFeeController.dispose();
+    _inspectionFeeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitListing() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a listing title.')),
+      );
+      setState(() => _currentStep = 1);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    final payload = {
+      'listing_type': _listingType,
+      'title': _titleController.text.trim(),
+      'category': _selectedCategory,
+      'sub_category': _subCategoryController.text.trim(),
+      'keywords': _keywordsController.text.trim(),
+      'featured_image': _logoUrlController.text.trim(),
+      'address': _addressController.text.trim(),
+      'friendly_address': _friendlyAddressController.text.trim(),
+      'region': _selectedRegion,
+      'service_area': _serviceAreaController.text.trim(),
+      'gallery': _galleryImages,
+      'description': _descriptionController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'email': _emailController.text.trim(),
+      'website': _websiteController.text.trim(),
+      'opening_hours': _openingHours,
+      'booking_status': _bookingEnabled ? 'on' : 'off',
+      'slots_status': _slotsEnabled ? 'on' : 'off',
+      'slot_limit': _slotLimit,
+      'visiting_fee': _visitingFeeController.text.trim(),
+      'inspection_fee': _inspectionFeeController.text.trim(),
+      'menu': [
+        {
+          'menu_title': 'Standard Services',
+          'menu_elements': _menuServices.map((s) => {
+            'name': s['name'],
+            'price': s['price'],
+            'description': s['description'],
+            'bookable': s['bookable'] == true ? 'on' : 'off',
+          }).toList(),
+        }
+      ],
+      'faq': _faqEnabled ? _faqs : [],
+    };
+
+    try {
+      if (widget.initialListing != null) {
+        final id = widget.initialListing!['id'] as int;
+        await ZipBizApiService().updateVendorListing(user: user, id: id, data: payload);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Listing updated successfully!'), backgroundColor: ZipBizColors.statusOpen),
+        );
+      } else {
+        await ZipBizApiService().createVendorListing(user: user, data: payload);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Listing published successfully!'), backgroundColor: ZipBizColors.statusOpen),
+        );
+      }
+      Navigator.pop(context, true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save listing: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _addServiceDialog() {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    bool bookable = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Add Service Package', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Service Name *', hintText: 'e.g. Fan Installation'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Price (₹) *', prefixText: '₹ '),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Description', hintText: 'What is included in this service'),
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Bookable Online'),
+                  subtitle: const Text('Allow customers to book this service package'),
+                  value: bookable,
+                  activeColor: ZipBizColors.primaryContainer,
+                  onChanged: (val) => setDialogState(() => bookable = val),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
+              onPressed: () {
+                if (nameCtrl.text.trim().isNotEmpty && priceCtrl.text.trim().isNotEmpty) {
+                  setState(() {
+                    _menuServices.add({
+                      'name': nameCtrl.text.trim(),
+                      'price': priceCtrl.text.trim(),
+                      'description': descCtrl.text.trim(),
+                      'bookable': bookable,
+                    });
+                  });
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addFaqDialog() {
+    final qCtrl = TextEditingController();
+    final aCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Add FAQ', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: qCtrl,
+              decoration: const InputDecoration(labelText: 'Question *', hintText: 'e.g. Do you bring tools?'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: aCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Answer *', hintText: 'Yes, all verified technicians carry standard kits.'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
+            onPressed: () {
+              if (qCtrl.text.trim().isNotEmpty && aCtrl.text.trim().isNotEmpty) {
+                setState(() {
+                  _faqs.add({
+                    'question': qCtrl.text.trim(),
+                    'answer': aCtrl.text.trim(),
+                  });
+                });
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Add FAQ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = [
+      'Type',
+      'Basic',
+      'Location',
+      'Gallery',
+      'Contact',
+      'Hours',
+      'Pricing',
+      'FAQs',
+      'Review',
+    ];
+
+    return Scaffold(
+      backgroundColor: ZipBizColors.surface,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: ZipBizColors.onSurface, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.initialListing != null ? 'Edit Listing' : 'Add New Listing',
+          style: ZipBizTypography.headlineSmall.copyWith(fontSize: 18),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Step Progress Bar
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Step ${_currentStep + 1} of ${steps.length}: ${steps[_currentStep]}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ZipBizColors.primaryContainer)),
+                    Text('${((_currentStep + 1) / steps.length * 100).toInt()}% Complete',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                LinearProgressIndicator(
+                  value: (_currentStep + 1) / steps.length,
+                  backgroundColor: ZipBizColors.surfaceContainer,
+                  valueColor: const AlwaysStoppedAnimation<Color>(ZipBizColors.primaryContainer),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ],
+            ),
+          ),
+
+          // Step Body
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: _buildStepContent(),
+            ),
+          ),
+
+          // Bottom Navigation Buttons
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFF0EDED))),
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  if (_currentStep > 0)
+                    Expanded(
+                      flex: 1,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: ZipBizColors.outline),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => setState(() => _currentStep--),
+                        child: const Text('Back', style: TextStyle(color: ZipBizColors.onSurface)),
+                      ),
+                    ),
+                  if (_currentStep > 0) const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ZipBizButton(
+                      text: _currentStep == steps.length - 1
+                          ? (widget.initialListing != null ? 'Update Listing' : 'Submit Listing')
+                          : 'Next Step',
+                      isLoading: _isSubmitting,
+                      onPressed: () {
+                        if (_currentStep < steps.length - 1) {
+                          setState(() => _currentStep++);
+                        } else {
+                          _submitListing();
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepContent() {
+    switch (_currentStep) {
+      case 0:
+        return _buildStep1Type();
+      case 1:
+        return _buildStep2Basic();
+      case 2:
+        return _buildStep3Location();
+      case 3:
+        return _buildStep4Gallery();
+      case 4:
+        return _buildStep5Contact();
+      case 5:
+        return _buildStep6Hours();
+      case 6:
+        return _buildStep7Pricing();
+      case 7:
+        return _buildStep8Faq();
+      case 8:
+        return _buildStep9Review();
+      default:
+        return const SizedBox();
+    }
+  }
+
+  // Step 1: Listing Type
+  Widget _buildStep1Type() {
+    final types = [
+      {'id': 'service', 'title': 'Service Provider', 'desc': 'Home services, repairs, cleaning, plumbing, electricians, technicians', 'icon': Icons.build_circle},
+      {'id': 'rent', 'title': 'Rentals', 'desc': 'Properties, vehicles, tools, equipment, event venues', 'icon': Icons.home_work},
+      {'id': 'others', 'title': 'Others', 'desc': 'General businesses, retail shops, consultation, dining & events', 'icon': Icons.storefront},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Choose Listing Type', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Select the classification that best matches your business or offering.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        ...types.map((t) {
+          final isSelected = _listingType == t['id'];
+          return ZipBizCard(
+            margin: const EdgeInsets.only(bottom: 12),
+            color: isSelected ? ZipBizColors.primaryFixed.withOpacity(0.2) : Colors.white,
+            border: Border.all(
+              color: isSelected ? ZipBizColors.primaryContainer : ZipBizColors.surfaceContainer,
+              width: isSelected ? 2 : 1,
+            ),
+            onTap: () => setState(() => _listingType = t['id'] as String),
+            child: Row(
+              children: [
+                Icon(t['icon'] as IconData, size: 40, color: isSelected ? ZipBizColors.primaryContainer : Colors.grey),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t['title'] as String, style: ZipBizTypography.labelLarge.copyWith(fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(t['desc'] as String, style: ZipBizTypography.bodySmall),
+                    ],
+                  ),
+                ),
+                Radio<String>(
+                  value: t['id'] as String,
+                  groupValue: _listingType,
+                  activeColor: ZipBizColors.primaryContainer,
+                  onChanged: (val) => setState(() => _listingType = val!),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // Step 2: Basic Info
+  Widget _buildStep2Basic() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Basic Information', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Provide essential information about your business listing.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _titleController,
+          decoration: const InputDecoration(
+            labelText: 'Listing Title *',
+            hintText: 'e.g. ZipBiz Expert Plumber Services',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: _selectedCategory,
+          decoration: const InputDecoration(
+            labelText: 'Category *',
+            border: OutlineInputBorder(),
+          ),
+          items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+          onChanged: (val) => setState(() => _selectedCategory = val!),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _subCategoryController,
+          decoration: const InputDecoration(
+            labelText: 'Sub-Category',
+            hintText: 'e.g. Geyser & Pipe Fitting',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _keywordsController,
+          decoration: const InputDecoration(
+            labelText: 'Keywords / Tags',
+            hintText: 'e.g. plumber, pipe, tap repair, instant service',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _logoUrlController,
+          decoration: const InputDecoration(
+            labelText: 'Logo / Featured Image URL',
+            hintText: 'https://zipbiz.in/wp-content/uploads/...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Step 3: Location
+  Widget _buildStep3Location() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Location & Coverage', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Specify where your service operates or your business is physically located.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _addressController,
+          decoration: const InputDecoration(
+            labelText: 'Physical Address',
+            hintText: 'e.g. SCO 42, Sector 34-C',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _friendlyAddressController,
+          decoration: const InputDecoration(
+            labelText: 'Friendly Display Address',
+            hintText: 'e.g. Sector 34, Chandigarh',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          value: _selectedRegion,
+          decoration: const InputDecoration(
+            labelText: 'Region / City *',
+            border: OutlineInputBorder(),
+          ),
+          items: _regions.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+          onChanged: (val) => setState(() => _selectedRegion = val!),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _serviceAreaController,
+          decoration: const InputDecoration(
+            labelText: 'Service Area / Coverage',
+            hintText: 'e.g. All Tricity within 20 km radius',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Step 4: Gallery
+  Widget _buildStep4Gallery() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Media Gallery', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Showcase high-resolution photos of your work, equipment, and facility.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _newImageUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Add Image URL',
+                  hintText: 'https://...',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
+              onPressed: () {
+                final url = _newImageUrlController.text.trim();
+                if (url.isNotEmpty) {
+                  setState(() {
+                    _galleryImages.add(url);
+                    _newImageUrlController.clear();
+                  });
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_galleryImages.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: ZipBizColors.surfaceSubtle,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ZipBizColors.surfaceContainer),
+            ),
+            child: Column(
+              children: const [
+                Icon(Icons.photo_library_outlined, size: 48, color: Colors.grey),
+                SizedBox(height: 8),
+                Text('No gallery images added yet.'),
+              ],
+            ),
+          )
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _galleryImages.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final url = entry.value;
+              return Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      url,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 100,
+                        height: 100,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.broken_image, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _galleryImages.removeAt(idx)),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                        child: const Icon(Icons.close, color: Colors.white, size: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+      ],
+    );
+  }
+
+  // Step 5: Contact & Description
+  Widget _buildStep5Contact() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Contact & Description', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Tell customers about your expertise and how they can reach you directly.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _descriptionController,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Business Description',
+            hintText: 'Describe your background, guarantees, and service specialities...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Direct Phone Number',
+            hintText: '+91 98765 43210',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Official Email',
+            hintText: 'contact@partner.com',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _websiteController,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            labelText: 'Website',
+            hintText: 'https://zipbiz.in',
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Step 6: Opening Hours
+  Widget _buildStep6Hours() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Opening Hours', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Set operating timings for each day of the week.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        ..._openingHours.entries.map((entry) {
+          final day = entry.key;
+          final val = entry.value;
+          final isOpen = val['open'] as bool;
+
+          return ZipBizCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 90,
+                  child: Text(day, style: ZipBizTypography.labelMedium.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                Switch(
+                  value: isOpen,
+                  activeColor: ZipBizColors.statusOpen,
+                  onChanged: (v) => setState(() => val['open'] = v),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: isOpen
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: Text('${val['from']} - ${val['to']}', style: ZipBizTypography.bodySmall),
+                            ),
+                          ],
+                        )
+                      : const Text('Closed', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // Step 7: Pricing & Bookable Services
+  Widget _buildStep7Pricing() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Pricing & Bookable Services', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Configure booking switches, slots, visit fees, and service packages.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        ZipBizCard(
+          child: Column(
+            children: [
+              SwitchListTile(
+                title: const Text('Enable Online Bookings', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Allows customers to reserve appointments directly through app'),
+                value: _bookingEnabled,
+                activeColor: ZipBizColors.statusOpen,
+                onChanged: (val) => setState(() => _bookingEnabled = val),
+              ),
+              const Divider(),
+              SwitchListTile(
+                title: const Text('Time Slot Booking System', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Enables hourly customer slot selection'),
+                value: _slotsEnabled,
+                activeColor: ZipBizColors.primaryContainer,
+                onChanged: (val) => setState(() => _slotsEnabled = val),
+              ),
+              if (_slotsEnabled) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('Max Bookings Per Slot: '),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: () {
+                        if (_slotLimit > 1) setState(() => _slotLimit--);
+                      },
+                    ),
+                    Text('$_slotLimit', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: () => setState(() => _slotLimit++),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _visitingFeeController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Visiting Fee (₹)',
+                  prefixText: '₹ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _inspectionFeeController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Inspection Fee (₹)',
+                  prefixText: '₹ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Service Packages (${_menuServices.length})', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16)),
+            TextButton.icon(
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Service'),
+              onPressed: _addServiceDialog,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ..._menuServices.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final s = entry.value;
+          final isBookable = s['bookable'] == true;
+
+          return ZipBizCard(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(s['name'] ?? '', style: ZipBizTypography.labelLarge),
+                          const SizedBox(width: 8),
+                          if (isBookable)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: ZipBizColors.statusOpen.withOpacity(0.15), borderRadius: BorderRadius.circular(4)),
+                              child: const Text('Bookable', style: TextStyle(color: ZipBizColors.statusOpen, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(s['description'] ?? '', style: ZipBizTypography.bodySmall),
+                      const SizedBox(height: 4),
+                      Text('₹${s['price']}', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 15, color: ZipBizColors.primary)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => setState(() => _menuServices.removeAt(idx)),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // Step 8: FAQ Section
+  Widget _buildStep8Faq() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('FAQ Section (Optional)', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+            Switch(
+              value: _faqEnabled,
+              activeColor: ZipBizColors.primaryContainer,
+              onChanged: (val) => setState(() => _faqEnabled = val),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text('Help customers with common questions regarding policies, materials, and warranties.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        if (_faqEnabled) ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Question'),
+              onPressed: _addFaqDialog,
+            ),
+          ),
+          ..._faqs.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final f = entry.value;
+
+            return ZipBizCard(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Q: ${f['question']}', style: ZipBizTypography.labelLarge.copyWith(fontSize: 14)),
+                        const SizedBox(height: 4),
+                        Text('A: ${f['answer']}', style: ZipBizTypography.bodySmall),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => setState(() => _faqs.removeAt(idx)),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
+  // Step 9: Review & Submit
+  Widget _buildStep9Review() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Review Listing Details', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Please review your details before submitting to ZipBiz marketplace.', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+        ZipBizCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_titleController.text.isNotEmpty ? _titleController.text : 'Untitled Listing',
+                  style: ZipBizTypography.headlineSmall.copyWith(fontSize: 18)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: ZipBizColors.primaryFixed, borderRadius: BorderRadius.circular(6)),
+                    child: Text(_selectedCategory, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_selectedRegion, style: ZipBizTypography.bodySmall),
+                  const SizedBox(width: 8),
+                  Text('• ${_listingType.toUpperCase()}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+              const Divider(height: 24),
+              _buildReviewRow('Address', _friendlyAddressController.text.isNotEmpty ? _friendlyAddressController.text : _addressController.text),
+              _buildReviewRow('Visiting Fee', '₹${_visitingFeeController.text}'),
+              _buildReviewRow('Inspection Fee', '₹${_inspectionFeeController.text}'),
+              _buildReviewRow('Services Added', '${_menuServices.length} packages'),
+              _buildReviewRow('Bookings Online', _bookingEnabled ? 'Active' : 'Disabled'),
+              _buildReviewRow('Slots Limit', '$_slotLimit / slot'),
+              _buildReviewRow('FAQs Included', _faqEnabled ? '${_faqs.length} Q&As' : 'Disabled'),
+              _buildReviewRow('Gallery Photos', '${_galleryImages.length} images'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReviewRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: ZipBizTypography.bodySmall),
+          Text(value.isNotEmpty ? value : 'N/A', style: ZipBizTypography.labelLarge.copyWith(fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}

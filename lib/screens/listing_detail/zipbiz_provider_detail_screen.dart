@@ -13,6 +13,7 @@ import '../../widgets/common/zipbiz_button.dart';
 import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_header.dart';
 import '../booking/zipbiz_booking_flow_screen.dart';
+import '../../vendor/messages/zipbiz_chat_detail_screen.dart';
 
 class ZipBizProviderDetailScreen extends StatefulWidget {
   final Product product;
@@ -401,17 +402,106 @@ class _ZipBizProviderDetailScreenState
                     ),
                   ),
                 ],
+
+                // ZipBiz Transparency & Guarantees
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text('ZipBiz Guarantee & Fees', style: ZipBizTypography.headlineSmall),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ZipBizCard(
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: Colors.green.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                              child: const Icon(Icons.verified_user, color: Colors.green, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Doorstep Diagnosis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text('Standard inspection fee of ₹149 applicable if no further repairs needed.', style: ZipBizTypography.bodySmall),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 16),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: Colors.blue.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                              child: const Icon(Icons.security, color: Colors.blue, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('30-Day Service Guarantee', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  Text('Free rework or full refund if issues persist after service completion.', style: ZipBizTypography.bodySmall),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // FAQs
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text('Frequently Asked Questions', style: ZipBizTypography.headlineSmall),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: const [
+                      ZipBizCard(
+                        margin: EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Q: How quickly will the pro arrive?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            SizedBox(height: 4),
+                            Text('A: The technician will arrive precisely during your selected time slot. You can track their status and message them directly in the app.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                      ZipBizCard(
+                        margin: EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Q: Can I pay after the service is completed?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            SizedBox(height: 4),
+                            Text('A: Yes! You can choose Pay on Service (Cash/UPI upon work completion) or pay securely in advance online.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
 
-          // Sticky Bottom Booking Bar
+          // Sticky Bottom Booking & Chat Bar
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: const Border(top: BorderSide(color: Color(0xFFF0EDED), width: 1)),
@@ -421,15 +511,42 @@ class _ZipBizProviderDetailScreenState
               ),
               child: Row(
                 children: [
+                  // Price column
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${_selectedPackageNames.length} Service(s) Selected', style: ZipBizTypography.labelSmall),
-                      Text('₹${_totalSelectedPrice.toStringAsFixed(0)}', style: ZipBizTypography.headlineMedium.copyWith(color: ZipBizColors.primary, fontWeight: FontWeight.bold)),
+                      Text('${_selectedPackageNames.length} Selected', style: ZipBizTypography.labelSmall),
+                      Text('₹${_totalSelectedPrice.toStringAsFixed(0)}', style: ZipBizTypography.headlineMedium.copyWith(color: ZipBizColors.primary, fontWeight: FontWeight.bold, fontSize: 18)),
                     ],
                   ),
                   const Spacer(),
+                  // Message Pro Button
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: ZipBizColors.primaryContainer),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 16, color: ZipBizColors.primaryContainer),
+                    label: const Text('Chat', style: TextStyle(color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      final vendorId = int.tryParse(p.id ?? '1') ?? 1;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ZipBizChatDetailScreen(
+                            recipientId: vendorId,
+                            recipientName: p.name ?? 'Vendor',
+                            listingTitle: p.name,
+                            listingId: int.tryParse(p.id ?? '0'),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  // Book Service Button
                   ZipBizButton(
                     text: 'Book Service',
                     icon: Icons.calendar_month,
@@ -449,8 +566,8 @@ class _ZipBizProviderDetailScreenState
                         ),
                       );
                     },
-                    height: 48,
-                    borderRadius: 12,
+                    height: 44,
+                    borderRadius: 10,
                   ),
                 ],
               ),

@@ -29,6 +29,18 @@ class ZipBiz_Bookings {
             'callback' => array($this, 'cancel_booking'),
             'permission_callback' => array($this, 'check_auth'),
         ));
+
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/customer/bookings', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_customer_bookings'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route('wp/v2', '/get-bookings', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_customer_bookings'),
+            'permission_callback' => '__return_true',
+        ));
     }
 
     public function check_auth($request) {
@@ -363,5 +375,95 @@ class ZipBiz_Bookings {
         );
 
         return ZipBiz_REST_API::success_response(array('booking_id' => $booking_id, 'status' => 'cancelled'), 'Booking successfully cancelled');
+    }
+
+    /**
+     * Get all bookings made by customer
+     */
+    public function get_customer_bookings($request) {
+        global $wpdb;
+        $user_id = intval($request->get_param('user_id'));
+        if (!$user_id) {
+            $user = wp_get_current_user();
+            $user_id = ($user && $user->ID) ? $user->ID : 0;
+        }
+
+        if (!$user_id) {
+            return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
+        }
+
+        $table_name = $wpdb->prefix . 'bookings';
+        $status = sanitize_text_field($request->get_param('status') ?: 'all');
+        $page = max(1, intval($request->get_param('page') ?: 1));
+        $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
+        $offset = ($page - 1) * $per_page;
+
+        $where = "WHERE bookings_author = $user_id";
+        if ($status !== 'all') {
+            if ($status === 'upcoming') {
+                $where .= " AND status IN ('confirmed', 'waiting', 'pending', 'in_progress', 'paid')";
+            } elseif ($status === 'completed') {
+                $where .= " AND status IN ('completed', 'finished')";
+            } elseif ($status === 'cancelled') {
+                $where .= " AND status IN ('cancelled', 'rejected')";
+            } else {
+                $where .= $wpdb->prepare(" AND status = %s", $status);
+            }
+        }
+
+        $items = array();
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+            $rows = $wpdb->get_results("SELECT * FROM $table_name $where ORDER BY id DESC LIMIT $offset, $per_page", ARRAY_A);
+            foreach ($rows as $r) {
+                $listing = get_post($r['listing_id']);
+                $comment_data = json_decode($r['comment'], true) ?: array();
+                $items[] = array_merge($comment_data, array(
+                    'id'             => intval($r['id']),
+                    'booking_id'     => intval($r['id']),
+                    'order_id'       => $r['order_id'] ?? 0,
+                    'status'         => $r['status'],
+                    'price'          => floatval($r['price']),
+                    'created'        => $r['created'],
+                    'created_date'   => date('d M Y, h:i A', strtotime($r['created'])),
+                    'date_start'     => $r['date_start'],
+                    'date_end'       => $r['date_end'],
+                    'listing_id'     => intval($r['listing_id']),
+                    'title'          => $listing ? $listing->post_title : 'Home Service',
+                    'listing_title'  => $listing ? $listing->post_title : 'Home Service',
+                    'featured_image' => $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: '') : '',
+                ));
+            }
+        } else {
+            $args = array(
+                'post_type'      => 'booking',
+                'author'         => $user_id,
+                'posts_per_page' => $per_page,
+                'paged'          => $page,
+                'orderby'        => 'date',
+                'order'          => 'DESC',
+            );
+            $posts = get_posts($args);
+            foreach ($posts as $p) {
+                $b_data = get_post_meta($p->ID, '_booking_data', true) ?: array();
+                $lid = get_post_meta($p->ID, '_listing_id', true);
+                $listing = get_post($lid);
+                $items[] = array_merge($b_data, array(
+                    'id'             => $p->ID,
+                    'booking_id'     => $p->ID,
+                    'status'         => get_post_meta($p->ID, '_status', true) ?: 'waiting',
+                    'price'          => floatval(get_post_meta($p->ID, '_price', true) ?: 499),
+                    'created'        => $p->post_date,
+                    'created_date'   => date('d M Y, h:i A', strtotime($p->post_date)),
+                    'title'          => $listing ? $listing->post_title : $p->post_title,
+                    'featured_image' => $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: '') : '',
+                ));
+            }
+        }
+
+        if (strpos($request->get_route(), 'get-bookings') !== false) {
+            return new WP_REST_Response($items, 200);
+        }
+
+        return ZipBiz_REST_API::success_response($items);
     }
 }

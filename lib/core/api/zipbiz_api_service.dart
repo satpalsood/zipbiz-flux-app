@@ -197,4 +197,225 @@ class ZipBizApiService {
     final data = jsonDecode(response.body);
     return response.statusCode == 200 && data['success'] == true;
   }
+
+  /// Customer: Get customer bookings (bookings made by user as a customer)
+  Future<List<dynamic>> getCustomerBookings({
+    required User user,
+    String status = 'all',
+  }) async {
+    final url = Uri.parse('$_baseUrl/customer/bookings?status=$status');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List?) ?? [];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load bookings');
+    }
+  }
+
+  /// Vendor: Get all listings created by vendor
+  Future<List<dynamic>> getVendorListings({
+    required User user,
+    int page = 1,
+    int perPage = 20,
+    String status = 'any',
+  }) async {
+    final url = Uri.parse('$_baseUrl/vendor/listings?page=$page&per_page=$perPage&status=$status');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List?) ?? [];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load vendor listings');
+    }
+  }
+
+  /// Vendor: Create new listing
+  Future<Map<String, dynamic>> createVendorListing({
+    required User user,
+    required Map<String, dynamic> data,
+  }) async {
+    final url = Uri.parse('$_baseUrl/vendor/listing/create');
+    final response = await http.post(url, headers: _getHeaders(user), body: jsonEncode(data));
+    final res = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && res['success'] == true) {
+      return (res['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(res['message'] ?? 'Failed to create listing');
+    }
+  }
+
+  /// Vendor: Update listing
+  Future<Map<String, dynamic>> updateVendorListing({
+    required User user,
+    required int id,
+    required Map<String, dynamic> data,
+  }) async {
+    final url = Uri.parse('$_baseUrl/vendor/listing/$id/update');
+    final response = await http.post(url, headers: _getHeaders(user), body: jsonEncode(data));
+    final res = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && res['success'] == true) {
+      return (res['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(res['message'] ?? 'Failed to update listing');
+    }
+  }
+
+  /// Vendor: Delete listing
+  Future<bool> deleteVendorListing({
+    required User user,
+    required int id,
+  }) async {
+    final url = Uri.parse('$_baseUrl/vendor/listing/$id/delete');
+    final response = await http.post(url, headers: _getHeaders(user));
+    final res = jsonDecode(response.body);
+    return response.statusCode == 200 && res['success'] == true;
+  }
+
+  /// Vendor: Get Wallet stats and payout history
+  Future<Map<String, dynamic>> getVendorWallet(User user) async {
+    final url = Uri.parse('$_baseUrl/vendor/wallet');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load wallet');
+    }
+  }
+
+  /// Vendor: Request withdrawal
+  Future<Map<String, dynamic>> requestVendorWithdrawal({
+    required User user,
+    required double amount,
+    required String method,
+    required Map<String, dynamic> details,
+  }) async {
+    final url = Uri.parse('$_baseUrl/vendor/wallet/withdraw');
+    final body = jsonEncode({
+      'amount': amount,
+      'method': method,
+      'details': details,
+    });
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to submit withdrawal request');
+    }
+  }
+
+  /// Vendor: Reviews
+  Future<List<dynamic>> getVendorReviews(User user) async {
+    final url = Uri.parse('$_baseUrl/vendor/reviews');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List?) ?? [];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load reviews');
+    }
+  }
+
+  /// Vendor: Bookmarks
+  Future<Map<String, dynamic>> getVendorBookmarks(User user) async {
+    final url = Uri.parse('$_baseUrl/vendor/bookmarks');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load bookmarks');
+    }
+  }
+
+  /// Vendor: Coupons
+  Future<List<dynamic>> getVendorCoupons(User user) async {
+    final url = Uri.parse('$_baseUrl/vendor/coupons');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List?) ?? [];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load coupons');
+    }
+  }
+
+  /// Vendor: Create Coupon
+  Future<Map<String, dynamic>> createVendorCoupon({
+    required User user,
+    required Map<String, dynamic> data,
+  }) async {
+    final url = Uri.parse('$_baseUrl/vendor/coupons/create');
+    final response = await http.post(url, headers: _getHeaders(user), body: jsonEncode(data));
+    final res = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && res['success'] == true) {
+      return (res['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(res['message'] ?? 'Failed to create coupon');
+    }
+  }
+
+  /// Messages: Get conversations list
+  Future<List<dynamic>> getConversations(User user) async {
+    final url = Uri.parse('$_baseUrl/messages/conversations');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as List?) ?? [];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load conversations');
+    }
+  }
+
+  /// Messages: Get message thread with partner
+  Future<Map<String, dynamic>> getMessageThread({
+    required User user,
+    required int recipientId,
+  }) async {
+    final url = Uri.parse('$_baseUrl/messages/$recipientId');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load message thread');
+    }
+  }
+
+  /// Messages: Send message
+  Future<Map<String, dynamic>> sendMessage({
+    required User user,
+    required int recipientId,
+    required String message,
+    int listingId = 0,
+  }) async {
+    final url = Uri.parse('$_baseUrl/messages/send');
+    final body = jsonEncode({
+      'recipient_id': recipientId,
+      'message': message,
+      'listing_id': listingId,
+    });
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to send message');
+    }
+  }
 }

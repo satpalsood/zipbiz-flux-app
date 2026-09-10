@@ -37,6 +37,9 @@ class ZipBiz_REST_API {
         $vendor = new ZipBiz_Vendor();
         $vendor->register_routes();
 
+        $messages = new ZipBiz_Messages();
+        $messages->register_routes();
+
         $notifications = new ZipBiz_Notifications();
         $notifications->register_routes();
 

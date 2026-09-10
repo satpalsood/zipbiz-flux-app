@@ -226,14 +226,23 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
           children: [
             const Icon(Icons.check_circle, color: ZipBizColors.statusOpen, size: 64),
             const SizedBox(height: 16),
-            Text('Booking Confirmed!', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+            Text('Request Sent!', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+            const SizedBox(height: 12),
+            Text(
+              'Booking request sent to vendor, wait for the confirmation.',
+              textAlign: TextAlign.center,
+              style: ZipBizTypography.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+                color: ZipBizColors.onSurface,
+              ),
+            ),
             const SizedBox(height: 8),
             Text(
-              'Your appointment with ${widget.product.name} has been scheduled for ${DateFormat('dd MMM').format(_selectedDate)} at ${_selectedTimeSlot}.',
+              'Scheduled for ${DateFormat('dd MMM yyyy').format(_selectedDate)} at $_selectedTimeSlot with ${widget.product.name}.',
               textAlign: TextAlign.center,
-              style: ZipBizTypography.bodySmall,
+              style: ZipBizTypography.bodySmall.copyWith(color: ZipBizColors.outline),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             ZipBizButton(
               text: 'View My Bookings',
               width: double.infinity,
@@ -242,6 +251,14 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                 Navigator.pop(context); // pop booking screen
                 FluxNavigate.pushNamed(RouteList.bookingHistory, context: context);
               },
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+              child: const Text('Back to Listing', style: TextStyle(color: ZipBizColors.secondary)),
             ),
           ],
         ),

@@ -3,7 +3,7 @@
  * Plugin Name: ZipBiz Mobile API
  * Plugin URI: https://zipbiz.in
  * Description: Production-grade REST API bridge for the ZipBiz Native Flutter mobile marketplace. Integrates Listeo listings, bookings, availability, server-side Razorpay payment verification, vendor partner portal, and FCM push notifications.
- * Version: 1.0.0
+ * Version: 1.2.0
  * Author: ZipBiz Engineering
  * Author URI: https://zipbiz.in
  * Text Domain: zipbiz-mobile-api
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
 
-define('ZIPBIZ_API_VERSION', '1.0.0');
+define('ZIPBIZ_API_VERSION', '1.2.0');
 define('ZIPBIZ_API_DIR', plugin_dir_path(__FILE__));
 define('ZIPBIZ_API_URL', plugin_dir_url(__FILE__));
 define('ZIPBIZ_API_NAMESPACE', 'zipbiz/v1');
@@ -24,6 +24,7 @@ require_once ZIPBIZ_API_DIR . 'includes/class-rest-api.php';
 require_once ZIPBIZ_API_DIR . 'includes/class-bookings.php';
 require_once ZIPBIZ_API_DIR . 'includes/class-payments.php';
 require_once ZIPBIZ_API_DIR . 'includes/class-vendor.php';
+require_once ZIPBIZ_API_DIR . 'includes/class-messages.php';
 require_once ZIPBIZ_API_DIR . 'includes/class-notifications.php';
 require_once ZIPBIZ_API_DIR . 'admin/settings.php';
 

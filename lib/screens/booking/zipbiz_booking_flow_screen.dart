@@ -49,9 +49,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
 
   Razorpay? _razorpay;
   int? _pendingBookingId;
-
   List<Map<String, dynamic>> _availableSlots = [];
-  bool _isLoadingSlots = false;
 
   int get _slotInterval {
     try {
@@ -241,7 +239,7 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
         user: user,
         listingId: listingId,
         date: formattedDate,
-        timeSlot: _selectedTimeSlot ?? _defaultTimeSlots.first,
+        timeSlot: _selectedTimeSlot ?? _computedSlots.first,
         services: widget.selectedPackages,
         address: addressMap,
         notes: _notesController.text.trim(),

@@ -159,7 +159,7 @@ class DefaultConfig {
 
     /// Show expired coupons in Coupon list.
     'ShowExpiredCoupons': false,
-    'AlwaysShowTabBar': false,
+    'AlwaysShowTabBar': true,
 
     /// Privacy Policies page ID. If page ID is null, use the URL instead.
     /// Accessible in the app via Settings > Privacy menu.

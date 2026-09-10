@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api/zipbiz_api_service.dart';
 import '../../core/theme/zipbiz_colors.dart';
@@ -86,9 +88,19 @@ class _ZipBizAddEditListingScreenState
   bool _bookingEnabled = true;
   bool _slotsEnabled = true;
   int _slotLimit = 5;
+  int _slotInterval = 1; // 1 or 2 hours
   final _visitingFeeController = TextEditingController(text: '149');
   final _inspectionFeeController = TextEditingController(text: '199');
+  final _additionalFeeLabelController = TextEditingController();
+  final _additionalFeeAmountController = TextEditingController();
   final List<Map<String, dynamic>> _menuServices = [];
+
+  // Media & Dynamic Config
+  bool _isUploadingFeatured = false;
+  bool _isUploadingGallery = false;
+  int? _featuredImageId;
+  final List<int> _galleryImageIds = [];
+  List<Map<String, dynamic>> _backendListingTypes = [];
 
   // Step 8: FAQ Section
   bool _faqEnabled = true;
@@ -101,6 +113,23 @@ class _ZipBizAddEditListingScreenState
     if (widget.initialListing != null) {
       _populateInitialData(widget.initialListing!);
     }
+    _loadVendorConfig();
+  }
+
+  Future<void> _loadVendorConfig() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+    try {
+      final config = await ZipBizApiService().getVendorConfig(user);
+      if (config['listing_types'] is List) {
+        final types = (config['listing_types'] as List).map((t) => Map<String, dynamic>.from(t)).toList();
+        if (types.isNotEmpty && mounted) {
+          setState(() {
+            _backendListingTypes = types;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   void _initDefaults() {
@@ -134,6 +163,9 @@ class _ZipBizAddEditListingScreenState
     _websiteController.text = item['website'] ?? '';
     _visitingFeeController.text = '${item['visiting_fee'] ?? '149'}';
     _inspectionFeeController.text = '${item['inspection_fee'] ?? '199'}';
+    _slotInterval = int.tryParse('${item['slot_interval']}') ?? 1;
+    _additionalFeeLabelController.text = item['additional_fee_label'] ?? '';
+    _additionalFeeAmountController.text = item['additional_fee_amount'] != null ? '${item['additional_fee_amount']}' : '';
     _bookingEnabled = item['booking_status'] == 'on';
     _slotsEnabled = item['slots_status'] == 'on';
     _slotLimit = int.tryParse('${item['slot_limit']}') ?? 5;
@@ -189,7 +221,86 @@ class _ZipBizAddEditListingScreenState
     _websiteController.dispose();
     _visitingFeeController.dispose();
     _inspectionFeeController.dispose();
+    _additionalFeeLabelController.dispose();
+    _additionalFeeAmountController.dispose();
     super.dispose();
+  }
+
+
+  Future<void> _pickAndUploadFeaturedImage() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (picked == null) return;
+
+      setState(() => _isUploadingFeatured = true);
+      final bytes = await picked.readAsBytes();
+      final base64String = base64Encode(bytes);
+      final res = await ZipBizApiService().uploadMedia(
+        user: user,
+        base64Data: base64String,
+        fileName: picked.name,
+      );
+
+      final url = res['url'] as String?;
+      final id = res['id'] as int?;
+      if (url != null && url.isNotEmpty) {
+        setState(() {
+          _logoUrlController.text = url;
+          _featuredImageId = id;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image uploaded to media library!'), backgroundColor: ZipBizColors.statusOpen),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingFeatured = false);
+    }
+  }
+
+  Future<void> _pickAndUploadGalleryImage() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (picked == null) return;
+
+      setState(() => _isUploadingGallery = true);
+      final bytes = await picked.readAsBytes();
+      final base64String = base64Encode(bytes);
+      final res = await ZipBizApiService().uploadMedia(
+        user: user,
+        base64Data: base64String,
+        fileName: picked.name,
+      );
+
+      final url = res['url'] as String?;
+      final id = res['id'] as int?;
+      if (url != null && url.isNotEmpty) {
+        setState(() {
+          _galleryImages.add(url);
+          if (id != null) _galleryImageIds.add(id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo added to gallery!'), backgroundColor: ZipBizColors.statusOpen),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingGallery = false);
+    }
   }
 
   Future<void> _submitListing() async {
@@ -228,6 +339,11 @@ class _ZipBizAddEditListingScreenState
       'slot_limit': _slotLimit,
       'visiting_fee': _visitingFeeController.text.trim(),
       'inspection_fee': _inspectionFeeController.text.trim(),
+      'slot_interval': _slotInterval,
+      'additional_fee_label': _additionalFeeLabelController.text.trim(),
+      'additional_fee_amount': _additionalFeeAmountController.text.trim(),
+      if (_featuredImageId != null) 'image_id': _featuredImageId,
+      if (_galleryImageIds.isNotEmpty) 'gallery_ids': _galleryImageIds,
       'menu': [
         {
           'menu_title': 'Standard Services',
@@ -252,7 +368,11 @@ class _ZipBizAddEditListingScreenState
       } else {
         await ZipBizApiService().createVendorListing(user: user, data: payload);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Listing published successfully!'), backgroundColor: ZipBizColors.statusOpen),
+          const SnackBar(
+            content: Text('Listing submitted for review! It will be live once approved by admin.'),
+            backgroundColor: ZipBizColors.statusOpen,
+            duration: Duration(seconds: 4),
+          ),
         );
       }
       Navigator.pop(context, true);
@@ -520,11 +640,27 @@ class _ZipBizAddEditListingScreenState
 
   // Step 1: Listing Type
   Widget _buildStep1Type() {
-    final types = [
+    final defaultTypes = [
       {'id': 'service', 'title': 'Service Provider', 'desc': 'Home services, repairs, cleaning, plumbing, electricians, technicians', 'icon': Icons.build_circle},
       {'id': 'rent', 'title': 'Rentals', 'desc': 'Properties, vehicles, tools, equipment, event venues', 'icon': Icons.home_work},
       {'id': 'others', 'title': 'Others', 'desc': 'General businesses, retail shops, consultation, dining & events', 'icon': Icons.storefront},
     ];
+
+    final types = _backendListingTypes.isNotEmpty
+        ? _backendListingTypes.map((b) {
+            final id = b['id'] ?? b['slug'] ?? 'service';
+            final name = b['name'] ?? b['title'] ?? id.toString().toUpperCase();
+            final isRent = id == 'rent';
+            return {
+              'id': id,
+              'title': name,
+              'desc': isRent
+                  ? 'Properties, vehicles, tools, equipment, event venues'
+                  : 'Home services, repairs, cleaning, plumbing, electricians, technicians',
+              'icon': isRent ? Icons.home_work : Icons.build_circle,
+            };
+          }).toList()
+        : defaultTypes;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,14 +753,45 @@ class _ZipBizAddEditListingScreenState
           ),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: _logoUrlController,
-          decoration: const InputDecoration(
-            labelText: 'Logo / Featured Image URL',
-            hintText: 'https://zipbiz.in/wp-content/uploads/...',
-            border: OutlineInputBorder(),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _logoUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Logo / Featured Image URL',
+                  hintText: 'https://zipbiz.in/wp-content/uploads/...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              icon: _isUploadingFeatured
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.cloud_upload_outlined, size: 16),
+              label: Text(_isUploadingFeatured ? 'Uploading...' : 'Upload'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZipBizColors.primaryContainer,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: _isUploadingFeatured ? null : _pickAndUploadFeaturedImage,
+            ),
+          ],
         ),
+        if (_logoUrlController.text.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              _logoUrlController.text,
+              height: 90,
+              width: 90,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -689,11 +856,24 @@ class _ZipBizAddEditListingScreenState
         const SizedBox(height: 16),
         Row(
           children: [
+            ElevatedButton.icon(
+              icon: _isUploadingGallery
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              label: Text(_isUploadingGallery ? 'Uploading Photo...' : 'Browse & Upload Photos'),
+              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
+              onPressed: _isUploadingGallery ? null : _pickAndUploadGalleryImage,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
             Expanded(
               child: TextField(
                 controller: _newImageUrlController,
                 decoration: const InputDecoration(
-                  labelText: 'Add Image URL',
+                  labelText: 'Or enter Image URL',
                   hintText: 'https://...',
                   border: OutlineInputBorder(),
                   isDense: true,
@@ -702,7 +882,7 @@ class _ZipBizAddEditListingScreenState
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.surfaceContainer, foregroundColor: ZipBizColors.onSurface),
               onPressed: () {
                 final url = _newImageUrlController.text.trim();
                 if (url.isNotEmpty) {
@@ -712,7 +892,7 @@ class _ZipBizAddEditListingScreenState
                   });
                 }
               },
-              child: const Text('Add'),
+              child: const Text('Add URL'),
             ),
           ],
         ),
@@ -923,6 +1103,20 @@ class _ZipBizAddEditListingScreenState
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  value: _slotInterval,
+                  decoration: const InputDecoration(
+                    labelText: 'Slot Duration / Interval',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text('1 Hour Interval (e.g. 09:00 - 10:00)')),
+                    DropdownMenuItem(value: 2, child: Text('2 Hours Interval (e.g. 09:00 - 11:00)')),
+                  ],
+                  onChanged: (val) => setState(() => _slotInterval = val ?? 1),
+                ),
               ],
             ],
           ),
@@ -948,6 +1142,35 @@ class _ZipBizAddEditListingScreenState
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'Inspection Fee (₹)',
+                  prefixText: '₹ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _additionalFeeLabelController,
+                decoration: const InputDecoration(
+                  labelText: 'Custom Additional Fee Name (Optional)',
+                  hintText: 'e.g. Material / Night Charge',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _additionalFeeAmountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Amount (₹)',
                   prefixText: '₹ ',
                   border: OutlineInputBorder(),
                 ),
@@ -1105,7 +1328,10 @@ class _ZipBizAddEditListingScreenState
               _buildReviewRow('Address', _friendlyAddressController.text.isNotEmpty ? _friendlyAddressController.text : _addressController.text),
               _buildReviewRow('Visiting Fee', '₹${_visitingFeeController.text}'),
               _buildReviewRow('Inspection Fee', '₹${_inspectionFeeController.text}'),
+              if (_additionalFeeLabelController.text.isNotEmpty)
+                _buildReviewRow(_additionalFeeLabelController.text, '₹${_additionalFeeAmountController.text}'),
               _buildReviewRow('Services Added', '${_menuServices.length} packages'),
+              _buildReviewRow('Slot Interval', '$_slotInterval Hour${_slotInterval > 1 ? "s" : ""}'),
               _buildReviewRow('Bookings Online', _bookingEnabled ? 'Active' : 'Disabled'),
               _buildReviewRow('Slots Limit', '$_slotLimit / slot'),
               _buildReviewRow('FAQs Included', _faqEnabled ? '${_faqs.length} Q&As' : 'Disabled'),

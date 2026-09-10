@@ -68,8 +68,12 @@ class ZipBizApiService {
   }
 
   /// Get slot availability for a listing on a specific date
-  Future<List<Map<String, dynamic>>> getSlotAvailability(int listingId, String date) async {
-    final url = Uri.parse('$_baseUrl/booking/availability?listing_id=$listingId&date=$date');
+  Future<List<Map<String, dynamic>>> getSlotAvailability(int listingId, String date, {int? interval}) async {
+    var endpoint = '$_baseUrl/booking/availability?listing_id=$listingId&date=$date';
+    if (interval != null && interval > 0) {
+      endpoint += '&interval=$interval';
+    }
+    final url = Uri.parse(endpoint);
     final response = await http.get(url, headers: {'Accept': 'application/json'});
     final data = jsonDecode(response.body);
 
@@ -416,6 +420,73 @@ class ZipBizApiService {
       return (data['data'] as Map<String, dynamic>?) ?? {};
     } else {
       throw Exception(data['message'] ?? 'Failed to send message');
+    }
+  }
+
+  /// Check if customer has an approved/confirmed booking with vendor or for a listing
+  Future<bool> hasConfirmedBooking({
+    required User user,
+    int? vendorId,
+    int? listingId,
+  }) async {
+    try {
+      final queryParams = <String, String>{};
+      if (vendorId != null && vendorId > 0) {
+        queryParams['vendor_id'] = vendorId.toString();
+      }
+      if (listingId != null && listingId > 0) {
+        queryParams['listing_id'] = listingId.toString();
+      }
+      final uri = Uri.parse('$_baseUrl/customer/has-confirmed-booking')
+          .replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: _getHeaders(user));
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data['data']?['has_confirmed'] == true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  /// Get vendor configuration (listing types, commission, moderation)
+  Future<Map<String, dynamic>> getVendorConfig(User user) async {
+    try {
+      final url = Uri.parse('$_baseUrl/vendor/config');
+      final response = await http.get(url, headers: _getHeaders(user));
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return (data['data'] as Map<String, dynamic>?) ?? {};
+      }
+    } catch (_) {}
+    return {
+      'listing_types': [
+        {'id': 'service', 'name': 'Service'},
+        {'id': 'rent', 'name': 'Rent'},
+      ],
+      'commission_rate': 15.0,
+      'approval_status': 'pending',
+    };
+  }
+
+  /// Upload media to WordPress Media Library
+  Future<Map<String, dynamic>> uploadMedia({
+    required User user,
+    String? base64Data,
+    String? fileName,
+  }) async {
+    final url = Uri.parse('$_baseUrl/media/upload');
+    final body = jsonEncode({
+      if (base64Data != null) 'base64_data': base64Data,
+      if (fileName != null) 'file_name': fileName,
+    });
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to upload media');
     }
   }
 }

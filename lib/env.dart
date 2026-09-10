@@ -217,7 +217,7 @@ Map<String, dynamic> environment = {
 
     /// Show expired coupons in Coupon list.
     "ShowExpiredCoupons": true,
-    "AlwaysShowTabBar": false,
+    "AlwaysShowTabBar": true,
 
     /// Privacy Policies page ID. If page ID is null, use the URL instead.
     /// Accessible in the app via Settings > Privacy menu.

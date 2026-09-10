@@ -41,6 +41,27 @@ class TabBarIcon extends StatelessWidget {
     Widget icon = Builder(
       builder: (context) {
         var iconColor = IconTheme.of(context).color;
+
+        // Modern crisp vector icons for ZipBiz core tabs
+        IconData? vectorIcon;
+        if (item.layout == 'home') {
+          vectorIcon = isActive ? Icons.home_rounded : Icons.home_outlined;
+        } else if (item.layout == 'category') {
+          vectorIcon = isActive ? Icons.grid_view_rounded : Icons.grid_view_outlined;
+        } else if (item.layout == 'booking-history') {
+          vectorIcon = isActive ? Icons.calendar_month_rounded : Icons.calendar_month_outlined;
+        } else if (item.layout == 'profile') {
+          vectorIcon = isActive ? Icons.person_rounded : Icons.person_outline_rounded;
+        }
+
+        if (vectorIcon != null) {
+          return Icon(
+            vectorIcon,
+            color: iconColor,
+            size: config.iconSize > 0 ? config.iconSize : 24,
+          );
+        }
+
         if (item.icon.isEmpty) {
           return Icon(
             Icons.question_mark,

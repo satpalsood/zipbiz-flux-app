@@ -104,12 +104,22 @@ class _ZipBizServicesDirectoryScreenState
       if (_selectedCategory != null) {
         final categoryModel =
             Provider.of<CategoryModel>(context, listen: false);
+        final catLower = _selectedCategory!.toLowerCase().trim();
         final matched = categoryModel.categories?.firstWhere(
-          (c) =>
-              (c.name?.toLowerCase().trim() ==
-                  _selectedCategory!.toLowerCase().trim()) ||
-              (c.slug?.toLowerCase().trim() ==
-                  _selectedCategory!.toLowerCase().trim()),
+          (c) {
+            final cName = (c.name ?? '').toLowerCase();
+            final cSlug = (c.slug ?? '').toLowerCase();
+            if (cName == catLower || cSlug == catLower) return true;
+            if (catLower.contains('clean') && (cName.contains('clean') || cSlug.contains('clean'))) return true;
+            if (catLower.contains('care') && (cName.contains('care') || cSlug.contains('care'))) return true;
+            if ((catLower.contains('salon') || catLower.contains('beauty')) &&
+                (cName.contains('salon') || cSlug.contains('salon') || cName.contains('beauty') || cSlug.contains('beauty'))) return true;
+            if (catLower.contains('electr') && (cName.contains('electr') || cSlug.contains('electr'))) return true;
+            if (catLower.contains('plumb') && (cName.contains('plumb') || cSlug.contains('plumb'))) return true;
+            if (catLower.contains('carpent') && (cName.contains('carpent') || cSlug.contains('carpent'))) return true;
+            if (catLower.contains('maid') && (cName.contains('maid') || cSlug.contains('maid'))) return true;
+            return false;
+          },
           orElse: () => null as dynamic,
         );
         if (matched != null) {
@@ -142,17 +152,41 @@ class _ZipBizServicesDirectoryScreenState
       return _allServices;
     }
 
-    final catLower = _selectedCategory!.toLowerCase();
+    final catLower = _selectedCategory!.trim().toLowerCase();
+    List<String> keywords = [];
+
+    if (catLower.contains('clean')) {
+      keywords = ['clean', 'cleaning', 'cleaner', 'deep clean', 'maid', 'housekeeping', 'sanitiz', 'wash'];
+    } else if (catLower.contains('care')) {
+      keywords = ['care', 'caregiver', 'care giver', 'elderly', 'nurse', 'patient', 'baby', 'attendant', 'parent'];
+    } else if (catLower.contains('salon') || catLower.contains('beauty')) {
+      // Both men and women salon services
+      keywords = ['salon', 'beauty', 'hair', 'grooming', 'men', 'women', 'shave', 'facial', 'barber', 'waxing', 'makeup', 'parlour', 'pedicure', 'manicure'];
+    } else if (catLower.contains('electr')) {
+      keywords = ['electr', 'wiring', 'appliance', 'switch', 'light', 'circuit', 'fan', 'inverter'];
+    } else if (catLower.contains('plumb')) {
+      keywords = ['plumb', 'pipe', 'leak', 'tap', 'drain', 'water', 'fitting', 'sanitary'];
+    } else if (catLower.contains('appliance')) {
+      keywords = ['appliance', 'ac', 'refrigerator', 'fridge', 'washing machine', 'microwave', 'repair'];
+    } else if (catLower.contains('carpent')) {
+      keywords = ['carpent', 'wood', 'furniture', 'door', 'lock', 'cupboard'];
+    } else if (catLower.contains('maid')) {
+      keywords = ['maid', 'cook', 'househelp', 'cleaning', 'domestic'];
+    } else {
+      keywords = [catLower];
+    }
+
     final filtered = _allServices.where((p) {
       final name = (p.name ?? '').toLowerCase();
       final cat = (p.categoryName ?? '').toLowerCase();
       final desc = (p.shortDescription ?? '').toLowerCase();
-      return name.contains(catLower) ||
-          cat.contains(catLower) ||
-          desc.contains(catLower);
+      final fullDesc = (p.description ?? '').toLowerCase();
+      final combined = '$name $cat $desc $fullDesc';
+
+      return keywords.any((k) => combined.contains(k));
     }).toList();
 
-    return filtered.isNotEmpty ? filtered : _allServices;
+    return filtered;
   }
 
   void _showRegionPicker() {

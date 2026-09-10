@@ -24,7 +24,7 @@ class ZipBizVendorDashboardScreen extends StatefulWidget {
 
 class _ZipBizVendorDashboardScreenState
     extends State<ZipBizVendorDashboardScreen> {
-  int _activeTab = 0; // 0: Overview, 1: My Bookings, 2: Messages, 3: Job Requests, 4: Wallet, 5: Listings, 6: Reviews, 7: Bookmarks, 8: Coupons, 9: Stats
+  int _activeTab = 0; // 0: Overview, 1: Job Requests, 2: Messages, 3: Wallet, 4: Listings, 5: Stats, 6: Coupons, 7: Reviews
   bool _isLoading = true;
   bool _isOnline = true;
 
@@ -41,15 +41,13 @@ class _ZipBizVendorDashboardScreenState
 
   final List<String> _tabNames = [
     'Overview',
-    'My Bookings',
-    'Messages',
     'Job Requests',
+    'Messages',
     'Wallet',
     'Listings',
-    'Reviews',
-    'Coupons',
     'Stats',
-    'Bookmarks',
+    'Coupons',
+    'Reviews',
   ];
 
   @override
@@ -478,23 +476,19 @@ class _ZipBizVendorDashboardScreenState
       case 0:
         return _buildOverviewTab();
       case 1:
-        return _buildMyBookingsTab();
+        return _buildJobRequestsTab();
       case 2:
         return _buildMessagesTab();
       case 3:
-        return _buildJobRequestsTab();
-      case 4:
         return _buildWalletTab();
-      case 5:
+      case 4:
         return _buildListingsTab();
-      case 6:
-        return _buildReviewsTab();
-      case 7:
-        return _buildCouponsTab();
-      case 8:
+      case 5:
         return _buildStatsTab();
-      case 9:
-        return _buildBookmarksTab();
+      case 6:
+        return _buildCouponsTab();
+      case 7:
+        return _buildReviewsTab();
       default:
         return _buildOverviewTab();
     }
@@ -521,7 +515,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$activeListings',
                 icon: Icons.list_alt,
                 color: const Color(0xFF2563EB),
-                onTap: () => setState(() => _activeTab = 5),
+                onTap: () => setState(() => _activeTab = 4),
               ),
             ),
             const SizedBox(width: 12),
@@ -531,7 +525,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$totalViews',
                 icon: Icons.visibility,
                 color: const Color(0xFF059669),
-                onTap: () => setState(() => _activeTab = 8),
+                onTap: () => setState(() => _activeTab = 5),
               ),
             ),
           ],
@@ -545,7 +539,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$totalReviews',
                 icon: Icons.star,
                 color: const Color(0xFFD97706),
-                onTap: () => setState(() => _activeTab = 6),
+                onTap: () => setState(() => _activeTab = 7),
               ),
             ),
             const SizedBox(width: 12),
@@ -555,7 +549,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$totalBookmarks',
                 icon: Icons.bookmark,
                 color: const Color(0xFF7C3AED),
-                onTap: () => setState(() => _activeTab = 9),
+                onTap: () => setState(() => _activeTab = 5),
               ),
             ),
           ],
@@ -615,7 +609,7 @@ class _ZipBizVendorDashboardScreenState
           children: [
             Text('Recent Customer Requests', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 17)),
             TextButton(
-              onPressed: () => setState(() => _activeTab = 3),
+              onPressed: () => setState(() => _activeTab = 1),
               child: const Text('View All'),
             ),
           ],

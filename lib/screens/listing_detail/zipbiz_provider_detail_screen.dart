@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../common/constants.dart';
+import '../../core/api/zipbiz_api_service.dart';
 import '../../core/theme/zipbiz_colors.dart';
 import '../../core/theme/zipbiz_typography.dart';
 import '../../models/entities/product.dart';
@@ -29,6 +30,8 @@ class _ZipBizProviderDetailScreenState
     extends State<ZipBizProviderDetailScreen> {
   final Set<String> _selectedPackageNames = {};
   double _totalSelectedPrice = 0;
+  bool _hasConfirmedBooking = false;
+  bool _isCheckingBooking = true;
 
   late List<Map<String, dynamic>> _packages;
 
@@ -36,6 +39,82 @@ class _ZipBizProviderDetailScreenState
   void initState() {
     super.initState();
     _initPackages();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkBookingStatus();
+    });
+  }
+
+  void _checkBookingStatus() async {
+    final userModel = Provider.of<UserModel>(context, listen: false);
+    final user = userModel.user;
+    if (user != null && user.id != null) {
+      final listingId = int.tryParse(widget.product.id ?? '0');
+      final hasConfirmed = await ZipBizApiService().hasConfirmedBooking(
+        user: user,
+        listingId: listingId,
+      );
+      if (mounted) {
+        setState(() {
+          _hasConfirmedBooking = hasConfirmed;
+          _isCheckingBooking = false;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _hasConfirmedBooking = false;
+          _isCheckingBooking = false;
+        });
+      }
+    }
+  }
+
+  String? get _heroImage {
+    final p = widget.product;
+    if (p.imageFeature != null && p.imageFeature!.isNotEmpty && p.imageFeature != kDefaultImage) {
+      return p.imageFeature;
+    }
+    if (p.images.isNotEmpty && p.images.first.isNotEmpty && p.images.first != kDefaultImage) {
+      return p.images.first;
+    }
+    return null;
+  }
+
+  String? _getMeta(String key) {
+    try {
+      for (var item in widget.product.metaData) {
+        if (item['key'] == key) {
+          final val = item['value']?.toString();
+          if (val != null && val.trim().isNotEmpty) {
+            return val.trim();
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  List<Map<String, String>> _getFaqs() {
+    final faqs = <Map<String, String>>[];
+    try {
+      for (var item in widget.product.metaData) {
+        if (item['key'] == '_faq' || item['key'] == 'faq') {
+          final val = item['value'];
+          if (val is List) {
+            for (var f in val) {
+              if (f is Map) {
+                final q = f['question']?.toString() ?? f['title']?.toString() ?? '';
+                final a = f['answer']?.toString() ?? f['content']?.toString() ?? '';
+                if (q.isNotEmpty) {
+                  faqs.add({'question': q, 'answer': a});
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return faqs;
   }
 
   void _initPackages() {
@@ -159,9 +238,17 @@ class _ZipBizProviderDetailScreenState
                           height: 220,
                           width: double.infinity,
                           color: ZipBizColors.surfaceContainer,
-                          child: (p.imageFeature != null && p.imageFeature!.isNotEmpty)
-                              ? Image.network(p.imageFeature!, fit: BoxFit.cover)
-                              : const Icon(Icons.home_repair_service, size: 60, color: Colors.grey),
+                          child: (_heroImage != null && _heroImage!.isNotEmpty)
+                              ? Image.network(
+                                  _heroImage!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.home_repair_service,
+                                      size: 60,
+                                      color: Colors.grey),
+                                )
+                              : const Icon(Icons.home_repair_service,
+                                  size: 60, color: Colors.grey),
                         ),
                         // Gradient overlay
                         Positioned.fill(
@@ -403,93 +490,125 @@ class _ZipBizProviderDetailScreenState
                   ),
                 ],
 
-                // ZipBiz Transparency & Guarantees
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text('ZipBiz Guarantee & Fees', style: ZipBizTypography.headlineSmall),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ZipBizCard(
-                    child: Column(
+                // Additional Fees & Details (Visiting fee / Inspection fee / Custom fee)
+                Builder(
+                  builder: (context) {
+                    final visitingFee = _getMeta('_visiting_fee') ?? _getMeta('visiting_fee');
+                    final additionalFeeLabel = _getMeta('_additional_fee_label');
+                    final additionalFeeAmount = _getMeta('_additional_fee_amount');
+                    final inspectionFee = _getMeta('_inspection_fee');
+                    final hasAdditionalFees = visitingFee != null || inspectionFee != null || (additionalFeeLabel != null && additionalFeeAmount != null);
+
+                    if (!hasAdditionalFees) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(color: Colors.green.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-                              child: const Icon(Icons.verified_user, color: Colors.green, size: 20),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Doorstep Diagnosis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  Text('Standard inspection fee of ₹149 applicable if no further repairs needed.', style: ZipBizTypography.bodySmall),
-                                ],
-                              ),
-                            ),
-                          ],
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text('Additional Fees & Details', style: ZipBizTypography.headlineSmall),
                         ),
-                        const Divider(height: 16),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(color: Colors.blue.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-                              child: const Icon(Icons.security, color: Colors.blue, size: 20),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('30-Day Service Guarantee', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  Text('Free rework or full refund if issues persist after service completion.', style: ZipBizTypography.bodySmall),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: ZipBizCard(
+                            child: Column(
+                              children: [
+                                if (visitingFee != null)
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.directions_car, size: 18, color: ZipBizColors.primaryContainer),
+                                          SizedBox(width: 8),
+                                          Text('Visiting Fee', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                        ],
+                                      ),
+                                      Text('₹$visitingFee', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: ZipBizColors.primary)),
+                                    ],
+                                  ),
+                                if (visitingFee != null && (inspectionFee != null || additionalFeeLabel != null))
+                                  const Divider(height: 16),
+                                if (inspectionFee != null)
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.search, size: 18, color: ZipBizColors.primaryContainer),
+                                          SizedBox(width: 8),
+                                          Text('Inspection Fee', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                        ],
+                                      ),
+                                      Text('₹$inspectionFee', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: ZipBizColors.primary)),
+                                    ],
+                                  ),
+                                if (additionalFeeLabel != null && additionalFeeAmount != null) ...[
+                                  if (visitingFee != null || inspectionFee != null)
+                                    const Divider(height: 16),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.info_outline, size: 18, color: ZipBizColors.primaryContainer),
+                                          const SizedBox(width: 8),
+                                          Text(additionalFeeLabel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                        ],
+                                      ),
+                                      Text('₹$additionalFeeAmount', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: ZipBizColors.primary)),
+                                    ],
+                                  ),
                                 ],
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ],
-                    ),
-                  ),
+                    );
+                  },
                 ),
 
-                // FAQs
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text('Frequently Asked Questions', style: ZipBizTypography.headlineSmall),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: const [
-                      ZipBizCard(
-                        margin: EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Q: How quickly will the pro arrive?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            SizedBox(height: 4),
-                            Text('A: The technician will arrive precisely during your selected time slot. You can track their status and message them directly in the app.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
+                // FAQs (Dynamic from API; hidden if empty)
+                Builder(
+                  builder: (context) {
+                    final faqs = _getFaqs();
+                    if (faqs.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text('Frequently Asked Questions', style: ZipBizTypography.headlineSmall),
                         ),
-                      ),
-                      ZipBizCard(
-                        margin: EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Q: Can I pay after the service is completed?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            SizedBox(height: 4),
-                            Text('A: Yes! You can choose Pay on Service (Cash/UPI upon work completion) or pay securely in advance online.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            children: faqs.map((faq) {
+                              return ZipBizCard(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Q: ${faq['question']}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'A: ${faq['answer']}',
+                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -521,30 +640,52 @@ class _ZipBizProviderDetailScreenState
                     ],
                   ),
                   const Spacer(),
-                  // Message Pro Button
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: ZipBizColors.primaryContainer),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 16, color: ZipBizColors.primaryContainer),
-                    label: const Text('Chat', style: TextStyle(color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      final vendorId = int.tryParse(p.id ?? '1') ?? 1;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ZipBizChatDetailScreen(
-                            recipientId: vendorId,
-                            recipientName: p.name ?? 'Vendor',
-                            listingTitle: p.name,
-                            listingId: int.tryParse(p.id ?? '0'),
+                  // Message Pro Button (Unlocked only once customer has a booked & confirmed order)
+                  if (_hasConfirmedBooking)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: ZipBizColors.primaryContainer),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.chat_bubble_outline, size: 16, color: ZipBizColors.primaryContainer),
+                      label: const Text('Chat', style: TextStyle(color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        final vendorId = int.tryParse(p.id ?? '1') ?? 1;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ZipBizChatDetailScreen(
+                              recipientId: vendorId,
+                              recipientName: p.name ?? 'Vendor',
+                              listingTitle: p.name,
+                              listingId: int.tryParse(p.id ?? '0'),
+                            ),
                           ),
+                        );
+                      },
+                    )
+                  else
+                    Tooltip(
+                      message: 'Chat unlocks once the vendor approves your booking',
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey.shade300),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                      );
-                    },
-                  ),
+                        icon: Icon(Icons.lock_outline, size: 16, color: Colors.grey.shade400),
+                        label: Text('Chat', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Direct chat unlocks once your booking request is accepted by the pro.'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   const SizedBox(width: 8),
                   // Book Service Button
                   ZipBizButton(

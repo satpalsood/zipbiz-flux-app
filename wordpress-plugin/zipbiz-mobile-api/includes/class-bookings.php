@@ -36,6 +36,12 @@ class ZipBiz_Bookings {
             'permission_callback' => array($this, 'check_auth'),
         ));
 
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/customer/has-confirmed-booking', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'check_has_confirmed_booking'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
         register_rest_route('wp/v2', '/get-bookings', array(
             'methods'  => 'GET',
             'callback' => array($this, 'get_customer_bookings'),
@@ -280,14 +286,32 @@ class ZipBiz_Bookings {
             return ZipBiz_REST_API::error_response('INVALID_LISTING', 'Invalid listing ID', 400);
         }
 
-        // Standard ZipBiz time slots
-        $standard_slots = array(
-            '09:00 AM - 11:00 AM',
-            '11:00 AM - 01:00 PM',
-            '02:00 PM - 04:00 PM',
-            '04:00 PM - 06:00 PM',
-            '06:00 PM - 08:00 PM',
-        );
+        // Determine slot duration from request or listing meta (default 2 hours)
+        $slot_interval = intval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 2);
+        if ($slot_interval === 1) {
+            $standard_slots = array(
+                '09:00 AM - 10:00 AM',
+                '10:00 AM - 11:00 AM',
+                '11:00 AM - 12:00 PM',
+                '12:00 PM - 01:00 PM',
+                '02:00 PM - 03:00 PM',
+                '03:00 PM - 04:00 PM',
+                '04:00 PM - 05:00 PM',
+                '05:00 PM - 06:00 PM',
+                '06:00 PM - 07:00 PM',
+                '07:00 PM - 08:00 PM',
+            );
+        } else {
+            $standard_slots = array(
+                '09:00 AM - 11:00 AM',
+                '11:00 AM - 01:00 PM',
+                '02:00 PM - 04:00 PM',
+                '04:00 PM - 06:00 PM',
+                '06:00 PM - 08:00 PM',
+            );
+        }
+
+        $max_slots = intval(get_post_meta($listing_id, '_slot_limit', true) ?: 3);
 
         global $wpdb;
         $table_name = $wpdb->prefix . 'bookings';
@@ -308,15 +332,15 @@ class ZipBiz_Bookings {
             }
         }
 
+        $slot_counts = array_count_values($booked_slots);
         $slots_out = array();
         $is_today = ($date === date('Y-m-d'));
         $current_hour = intval(date('H'));
 
         foreach ($standard_slots as $slot) {
-            $is_available = true;
-            if (in_array($slot, $booked_slots)) {
-                $is_available = false;
-            }
+            $count = isset($slot_counts[$slot]) ? $slot_counts[$slot] : 0;
+            $is_available = ($count < $max_slots);
+
             // Check if slot has already passed today
             if ($is_today) {
                 $start_hour = intval(substr($slot, 0, 2));
@@ -334,8 +358,10 @@ class ZipBiz_Bookings {
         }
 
         return ZipBiz_REST_API::success_response(array(
-            'date'  => $date,
-            'slots' => $slots_out,
+            'date'          => $date,
+            'slot_interval' => $slot_interval,
+            'slot_limit'    => $max_slots,
+            'slots'         => $slots_out,
         ));
     }
 
@@ -465,5 +491,63 @@ class ZipBiz_Bookings {
         }
 
         return ZipBiz_REST_API::success_response($items);
+    }
+
+    /**
+     * Check if customer has an approved/confirmed booking with vendor or for a listing
+     */
+    public function check_has_confirmed_booking($request) {
+        global $wpdb;
+        $user = wp_get_current_user();
+        if (!$user || !$user->ID) {
+            return ZipBiz_REST_API::success_response(array('has_confirmed' => false));
+        }
+
+        $vendor_id = intval($request->get_param('vendor_id'));
+        $listing_id = intval($request->get_param('listing_id'));
+
+        $table_name = $wpdb->prefix . 'bookings';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+            $query = "SELECT b.id FROM $table_name b 
+                      LEFT JOIN {$wpdb->posts} p ON b.listing_id = p.ID 
+                      WHERE b.bookings_author = %d 
+                      AND b.status IN ('confirmed', 'paid', 'approved', 'in_progress', 'completed')";
+            $params = array($user->ID);
+
+            if ($listing_id > 0) {
+                $query .= " AND b.listing_id = %d";
+                $params[] = $listing_id;
+            }
+            if ($vendor_id > 0) {
+                $query .= " AND p.post_author = %d";
+                $params[] = $vendor_id;
+            }
+            $query .= " LIMIT 1";
+
+            $found = $wpdb->get_var($wpdb->prepare($query, ...$params));
+            if ($found) {
+                return ZipBiz_REST_API::success_response(array('has_confirmed' => true, 'booking_id' => intval($found)));
+            }
+        }
+
+        // Post type 'booking' fallback
+        $meta_query = array(
+            array('key' => '_booking_user_id', 'value' => $user->ID),
+            array('key' => '_booking_status', 'value' => array('confirmed', 'paid', 'approved', 'in_progress', 'completed'), 'compare' => 'IN'),
+        );
+        if ($listing_id > 0) {
+            $meta_query[] = array('key' => '_listing_id', 'value' => $listing_id);
+        }
+        $posts = get_posts(array(
+            'post_type'      => 'booking',
+            'meta_query'     => $meta_query,
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+        ));
+
+        return ZipBiz_REST_API::success_response(array(
+            'has_confirmed' => !empty($posts),
+            'booking_id'    => !empty($posts) ? $posts[0] : null,
+        ));
     }
 }

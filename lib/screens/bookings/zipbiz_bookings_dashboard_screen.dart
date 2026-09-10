@@ -236,9 +236,39 @@ class _ZipBizBookingsDashboardScreenState
   }
 
   Widget _buildBookingCard(ListingBooking booking) {
-    final status = (booking.status ?? 'Waiting').toUpperCase();
-    final isConfirmed = status.contains('CONFIRM') || status.contains('PAID');
+    final status = (booking.status ?? 'waiting').toUpperCase();
+    final isConfirmed = status.contains('CONFIRM') || status.contains('PAID') || status.contains('APPROV');
+    final isWaiting = status.contains('WAIT') || status.contains('PEND');
+    final isInProgress = status.contains('PROGRESS');
+    final isCompleted = status.contains('COMPLET');
     final isCancelled = status.contains('CANCEL') || status.contains('REJECT');
+
+    String statusLabel = 'Pending Approval';
+    Color statusColor = const Color(0xFFF59E0B);
+    Color statusBg = const Color(0xFFFEF3C7);
+    IconData statusIcon = Icons.hourglass_top_rounded;
+
+    if (isConfirmed) {
+      statusLabel = 'Confirmed';
+      statusColor = const Color(0xFF10B981);
+      statusBg = const Color(0xFFD1FAE5);
+      statusIcon = Icons.check_circle_rounded;
+    } else if (isInProgress) {
+      statusLabel = 'In Progress';
+      statusColor = const Color(0xFF3B82F6);
+      statusBg = const Color(0xFFDBEAFE);
+      statusIcon = Icons.timelapse_rounded;
+    } else if (isCompleted) {
+      statusLabel = 'Completed';
+      statusColor = const Color(0xFF10B981);
+      statusBg = const Color(0xFFD1FAE5);
+      statusIcon = Icons.task_alt_rounded;
+    } else if (isCancelled) {
+      statusLabel = 'Declined';
+      statusColor = const Color(0xFFEF4444);
+      statusBg = const Color(0xFFFEE2E2);
+      statusIcon = Icons.cancel_rounded;
+    }
 
     return ZipBizCard(
       margin: const EdgeInsets.only(bottom: 12),
@@ -250,30 +280,26 @@ class _ZipBizBookingsDashboardScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isCancelled
-                      ? ZipBizColors.statusClosed.withOpacity(0.1)
-                      : isConfirmed
-                          ? ZipBizColors.statusOpen.withOpacity(0.1)
-                          : ZipBizColors.primaryFixed,
+                  color: statusBg,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      isCancelled ? Icons.cancel : Icons.circle,
-                      size: isCancelled ? 12 : 6,
-                      color: isCancelled ? ZipBizColors.statusClosed : (isConfirmed ? ZipBizColors.statusOpen : ZipBizColors.primaryContainer),
+                      statusIcon,
+                      size: 13,
+                      color: statusColor,
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      isConfirmed ? 'Pro Confirmed' : status,
+                      statusLabel,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: isCancelled ? ZipBizColors.statusClosed : (isConfirmed ? ZipBizColors.statusOpen : ZipBizColors.onPrimaryFixedVariant),
+                        color: statusColor,
                       ),
                     ),
                   ],
@@ -342,19 +368,40 @@ class _ZipBizBookingsDashboardScreenState
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.chat_bubble_outline, size: 16),
-                  label: const Text('Chat with Pro', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: ZipBizColors.onSurface,
-                    side: const BorderSide(color: Color(0xFFE4E2E1)),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () {
-                    FluxNavigate.pushNamed(RouteList.chat, context: context);
-                  },
-                ),
+                child: (isConfirmed || isInProgress || isCompleted)
+                    ? OutlinedButton.icon(
+                        icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                        label: const Text('Chat with Pro', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: ZipBizColors.primaryContainer,
+                          side: const BorderSide(color: ZipBizColors.primaryContainer),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () {
+                          FluxNavigate.pushNamed(RouteList.chat, context: context);
+                        },
+                      )
+                    : Tooltip(
+                        message: 'Chat unlocks once provider approves your request',
+                        child: OutlinedButton.icon(
+                          icon: Icon(Icons.lock_outline, size: 15, color: Colors.grey.shade400),
+                          label: Text('Awaiting Pro', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.grey.shade300),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Direct chat unlocks once the provider accepts your booking request.'),
+                                duration: Duration(seconds: 3),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
               ),
               const SizedBox(width: 8),
               if (!isCancelled)

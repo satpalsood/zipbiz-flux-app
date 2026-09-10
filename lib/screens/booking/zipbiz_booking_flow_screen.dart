@@ -50,21 +50,94 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
   Razorpay? _razorpay;
   int? _pendingBookingId;
 
-  final List<String> _defaultTimeSlots = [
-    '09:00 AM - 11:00 AM',
-    '11:00 AM - 01:00 PM',
-    '02:00 PM - 04:00 PM',
-    '04:00 PM - 06:00 PM',
-    '06:00 PM - 08:00 PM',
-  ];
+  List<Map<String, dynamic>> _availableSlots = [];
+  bool _isLoadingSlots = false;
+
+  int get _slotInterval {
+    try {
+      for (var item in widget.product.metaData) {
+        if (item['key'] == '_slot_interval') {
+          return int.tryParse(item['value']?.toString() ?? '2') ?? 2;
+        }
+      }
+    } catch (_) {}
+    return 2;
+  }
+
+  List<String> get _computedSlots {
+    if (_availableSlots.isNotEmpty) {
+      return _availableSlots.map((s) => s['time']?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+    }
+    if (_slotInterval == 1) {
+      return [
+        '09:00 AM - 10:00 AM',
+        '10:00 AM - 11:00 AM',
+        '11:00 AM - 12:00 PM',
+        '12:00 PM - 01:00 PM',
+        '02:00 PM - 03:00 PM',
+        '03:00 PM - 04:00 PM',
+        '04:00 PM - 05:00 PM',
+        '05:00 PM - 06:00 PM',
+        '06:00 PM - 07:00 PM',
+        '07:00 PM - 08:00 PM',
+      ];
+    }
+    return [
+      '09:00 AM - 11:00 AM',
+      '11:00 AM - 01:00 PM',
+      '02:00 PM - 04:00 PM',
+      '04:00 PM - 06:00 PM',
+      '06:00 PM - 08:00 PM',
+    ];
+  }
+
+  bool _isSlotAvailable(String slot) {
+    if (_availableSlots.isEmpty) return true;
+    final match = _availableSlots.firstWhere(
+      (s) => s['time'] == slot,
+      orElse: () => {'available': true},
+    );
+    return match['available'] == true;
+  }
+
+  void _loadAvailability() async {
+    final listingId = int.tryParse(widget.product.id ?? '0');
+    if (listingId == null || listingId == 0) return;
+
+    setState(() => _isLoadingSlots = true);
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    try {
+      final slots = await ZipBizApiService().getSlotAvailability(listingId, dateStr, interval: _slotInterval);
+      if (mounted) {
+        setState(() {
+          _availableSlots = slots;
+          _isLoadingSlots = false;
+          if (_computedSlots.isNotEmpty) {
+            final firstAvail = _computedSlots.firstWhere(
+              (s) => _isSlotAvailable(s),
+              orElse: () => _computedSlots.first,
+            );
+            _selectedTimeSlot = firstAvail;
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingSlots = false);
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _selectedDate = DateTime.now();
-    _selectedTimeSlot = _defaultTimeSlots.first;
+    _selectedTimeSlot = _computedSlots.first;
     _initRazorpay();
     _prefillUser();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAvailability();
+    });
   }
 
   void _prefillUser() {
@@ -388,7 +461,10 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                         }
 
                         return GestureDetector(
-                          onTap: () => setState(() => _selectedDate = date),
+                          onTap: () {
+                            setState(() => _selectedDate = date);
+                            _loadAvailability();
+                          },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
                             width: 68,
@@ -441,38 +517,71 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                   // Time Slots Section
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                    child: Text('Select Time Slot', style: ZipBizTypography.headlineSmall),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Select Time Slot', style: ZipBizTypography.headlineSmall),
+                        if (_isLoadingSlots)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: ZipBizColors.primaryContainer),
+                          )
+                        else
+                          Text('${_slotInterval}h intervals', style: ZipBizTypography.labelSmall),
+                      ],
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
-                      children: _defaultTimeSlots.map((slot) {
+                      children: _computedSlots.map((slot) {
                         final isSelected = (_selectedTimeSlot == slot);
+                        final isAvailable = _isSlotAvailable(slot);
                         return ZipBizCard(
                           margin: const EdgeInsets.only(bottom: 8),
-                          color: isSelected ? ZipBizColors.primaryFixed.withOpacity(0.2) : ZipBizColors.surfaceContainerLowest,
+                          color: isSelected
+                              ? ZipBizColors.primaryFixed.withOpacity(0.2)
+                              : (isAvailable ? ZipBizColors.surfaceContainerLowest : Colors.grey.shade100),
                           border: Border.all(
                             color: isSelected ? ZipBizColors.primaryContainer : ZipBizColors.surfaceContainer,
                             width: isSelected ? 1.5 : 1,
                           ),
-                          onTap: () => setState(() => _selectedTimeSlot = slot),
+                          onTap: isAvailable ? () => setState(() => _selectedTimeSlot = slot) : null,
                           child: Row(
                             children: [
                               Icon(
                                 isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                color: isSelected ? ZipBizColors.primaryContainer : Colors.grey,
+                                color: isSelected
+                                    ? ZipBizColors.primaryContainer
+                                    : (isAvailable ? Colors.grey : Colors.grey.shade300),
                                 size: 20,
                               ),
                               const SizedBox(width: 12),
-                              Text(slot, style: ZipBizTypography.labelLarge.copyWith(fontSize: 14)),
+                              Text(
+                                slot,
+                                style: ZipBizTypography.labelLarge.copyWith(
+                                  fontSize: 14,
+                                  color: isAvailable ? null : Colors.grey,
+                                ),
+                              ),
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: ZipBizColors.statusOpen.withOpacity(0.1),
+                                  color: isAvailable
+                                      ? ZipBizColors.statusOpen.withOpacity(0.1)
+                                      : Colors.grey.shade200,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Text('Available', style: TextStyle(fontSize: 10, color: ZipBizColors.statusOpen, fontWeight: FontWeight.bold)),
+                                child: Text(
+                                  isAvailable ? 'Available' : 'Booked',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: isAvailable ? ZipBizColors.statusOpen : Colors.grey,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -495,43 +604,105 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                         children: [
                           TextField(
                             controller: _houseController,
-                            decoration: const InputDecoration(
+                            minLines: 1,
+                            maxLines: 2,
+                            decoration: InputDecoration(
                               labelText: 'Flat / House No. / Building Name *',
-                              isDense: true,
+                              labelStyle: const TextStyle(fontSize: 13),
+                              filled: true,
+                              fillColor: const Color(0xFFF9FAFB),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: _streetController,
-                            decoration: const InputDecoration(
+                            minLines: 1,
+                            maxLines: 2,
+                            decoration: InputDecoration(
                               labelText: 'Street / Area / Sector (e.g. Phase 7, Mohali) *',
-                              isDense: true,
+                              labelStyle: const TextStyle(fontSize: 13),
+                              filled: true,
+                              fillColor: const Color(0xFFF9FAFB),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: _landmarkController,
-                            decoration: const InputDecoration(
+                            minLines: 1,
+                            maxLines: 2,
+                            decoration: InputDecoration(
                               labelText: 'Landmark (Optional)',
-                              isDense: true,
+                              labelStyle: const TextStyle(fontSize: 13),
+                              filled: true,
+                              fillColor: const Color(0xFFF9FAFB),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: 'Contact Phone Number *',
-                              isDense: true,
+                              labelStyle: const TextStyle(fontSize: 13),
+                              filled: true,
+                              fillColor: const Color(0xFFF9FAFB),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: _notesController,
-                            maxLines: 2,
-                            decoration: const InputDecoration(
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration: InputDecoration(
                               labelText: 'Special instructions for technician',
-                              isDense: true,
+                              labelStyle: const TextStyle(fontSize: 13),
+                              filled: true,
+                              fillColor: const Color(0xFFF9FAFB),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                              ),
                             ),
                           ),
                         ],

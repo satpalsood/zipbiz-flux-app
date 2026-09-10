@@ -30,6 +30,24 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(56.0);
 
+  bool _isMainRootScreen(BuildContext context) {
+    final route = ModalRoute.of(context);
+    final routeName = route?.settings.name;
+    if (routeName == null ||
+        routeName == RouteList.home ||
+        routeName == RouteList.category ||
+        routeName == RouteList.bookingHistory ||
+        routeName == RouteList.profile ||
+        routeName == '/' ||
+        routeName == '/home' ||
+        routeName == '/category' ||
+        routeName == '/booking-history' ||
+        routeName == '/profile') {
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -38,6 +56,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
         backgroundColor ?? (isDark ? theme.colorScheme.surface : Colors.white);
     final textColor = isDark ? Colors.white : const Color(0xFF1B1C1E);
     final borderColor = isDark ? Colors.white12 : const Color(0xFFE4E2E1);
+    final canShowBack = showBackButton && !_isMainRootScreen(context) && Navigator.canPop(context);
 
     return Container(
       color: bgColor,
@@ -45,7 +64,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
         bottom: false,
         child: Container(
           height: 56.0,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: bgColor,
             border: Border(
@@ -59,20 +78,20 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Left: Back button (if enabled) + ZipBiz Logo
+              // Left: Back button (if enabled and not on root screens) + ZipBiz Logo
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (showBackButton && Navigator.canPop(context))
+                  if (canShowBack)
                     Padding(
-                      padding: const EdgeInsets.only(right: 6.0),
+                      padding: const EdgeInsets.only(right: 4.0),
                       child: InkWell(
                         onTap: onBack ?? () => Navigator.of(context).maybePop(),
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
-                          padding: const EdgeInsets.all(6),
+                          padding: const EdgeInsets.all(4),
                           child: Icon(Icons.arrow_back_ios_new,
-                              size: 18, color: textColor),
+                              size: 16, color: textColor),
                         ),
                       ),
                     ),
@@ -80,18 +99,18 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
                     onTap: () {},
                     child: Image.asset(
                       'assets/images/logo.png',
-                      height: 30,
+                      height: 26,
                       fit: BoxFit.contain,
                       errorBuilder: (_, __, ___) => Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.location_on,
-                              color: Color(0xFFFF672D), size: 22),
-                          const SizedBox(width: 4),
+                              color: Color(0xFFFF672D), size: 18),
+                          const SizedBox(width: 3),
                           Text(
                             'ZipBiz',
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
                               color: textColor,
                               letterSpacing: -0.5,
@@ -104,37 +123,38 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
                 ],
               ),
 
-              // Center: Location Dropdown Pill
+              // Center: Compact Location Dropdown Pill
               if (showLocation)
                 InkWell(
                   onTap: () => showZipBizLocationPicker(context),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                     decoration: BoxDecoration(
                       color: isDark
                           ? Colors.white.withOpacity(0.08)
                           : const Color(0xFFF3F3F3),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: borderColor),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.location_on,
-                            size: 15, color: Color(0xFFFF672D)),
-                        const SizedBox(width: 4),
+                            size: 13, color: Color(0xFFFF672D)),
+                        const SizedBox(width: 3),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 125),
+                          constraints: const BoxConstraints(maxWidth: 88),
                           child: ValueListenableBuilder<String>(
                             valueListenable:
                                 ZipBizLocationState.selectedLocation,
                             builder: (context, location, _) {
                               return Text(
                                 location,
+                                maxLines: 1,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: textColor,
                                 ),
@@ -145,7 +165,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
                         ),
                         const SizedBox(width: 2),
                         const Icon(Icons.expand_more,
-                            size: 16, color: Color(0xFF7A7B7F)),
+                            size: 14, color: Color(0xFF7A7B7F)),
                       ],
                     ),
                   ),

@@ -110,6 +110,26 @@ class ZipBiz_Vendor {
             'callback' => array($this, 'create_coupon'),
             'permission_callback' => array($this, 'check_vendor_auth'),
         ));
+
+        // Vendor Config (Listing types, commission rate, moderation)
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/config', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_config'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
+
+        // Media Upload
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/media/upload', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'upload_media'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
+
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/media/upload', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'upload_media'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
     }
 
     public function check_vendor_auth($request) {
@@ -130,24 +150,16 @@ class ZipBiz_Vendor {
     }
 
     /**
-     * Get IDs of all listings owned by current user
+     * Get IDs of all listings owned by current user (strict author isolation)
      */
     private function get_vendor_listing_ids($user_id) {
-        if (current_user_can('manage_options')) {
-            // Admin can see all or own
-            $args = array(
-                'post_type'      => 'listing',
-                'posts_per_page' => -1,
-                'fields'         => 'ids',
-            );
-        } else {
-            $args = array(
-                'post_type'      => 'listing',
-                'author'         => $user_id,
-                'posts_per_page' => -1,
-                'fields'         => 'ids',
-            );
-        }
+        $args = array(
+            'post_type'      => 'listing',
+            'author'         => $user_id,
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'post_status'    => array('publish', 'pending', 'draft', 'expired'),
+        );
         return get_posts($args);
     }
 
@@ -442,11 +454,14 @@ class ZipBiz_Vendor {
                 'email'            => get_post_meta($lid, '_email', true) ?: '',
                 'website'          => get_post_meta($lid, '_website', true) ?: '',
                 'price'            => get_post_meta($lid, '_price_min', true) ?: '499',
-                'visiting_fee'     => get_post_meta($lid, '_visiting_fee', true) ?: '',
-                'inspection_fee'   => get_post_meta($lid, '_inspection_fee', true) ?: '',
-                'booking_status'   => get_post_meta($lid, '_booking_status', true) === 'on',
-                'slots_status'     => get_post_meta($lid, '_slots_status', true) === 'on',
-                'slot_limit'       => get_post_meta($lid, '_slot_limit', true) ?: '3',
+                'visiting_fee'          => get_post_meta($lid, '_visiting_fee', true) ?: '',
+                'additional_fee_label'  => get_post_meta($lid, '_additional_fee_label', true) ?: '',
+                'additional_fee_amount' => get_post_meta($lid, '_additional_fee_amount', true) ?: '',
+                'inspection_fee'        => get_post_meta($lid, '_inspection_fee', true) ?: '',
+                'booking_status'        => get_post_meta($lid, '_booking_status', true) === 'on',
+                'slots_status'          => get_post_meta($lid, '_slots_status', true) === 'on',
+                'slot_limit'            => get_post_meta($lid, '_slot_limit', true) ?: '3',
+                'slot_interval'         => get_post_meta($lid, '_slot_interval', true) ?: '2',
                 'image'            => get_the_post_thumbnail_url($lid, 'medium') ?: '',
                 'gallery'          => get_post_meta($lid, '_gallery', true) ?: array(),
                 'views'            => intval(get_post_meta($lid, '_count_views', true) ?: get_post_meta($lid, '_listing_views_count', true) ?: 0),
@@ -474,10 +489,15 @@ class ZipBiz_Vendor {
             return ZipBiz_REST_API::error_response('INVALID_TITLE', 'Listing title is required', 400);
         }
 
+        $default_status = get_option('listeo_new_listing_status', 'pending');
+        if (empty($default_status)) {
+            $default_status = 'pending';
+        }
+
         $post_data = array(
             'post_title'   => $title,
             'post_content' => wp_kses_post($params['description'] ?? ''),
-            'post_status'  => 'publish',
+            'post_status'  => $default_status,
             'post_type'    => 'listing',
             'post_author'  => $user->ID,
         );
@@ -489,7 +509,10 @@ class ZipBiz_Vendor {
 
         $this->save_listing_meta($listing_id, $params);
 
-        return ZipBiz_REST_API::success_response(array('listing_id' => $listing_id), 'Listing created successfully', 201);
+        return ZipBiz_REST_API::success_response(array(
+            'listing_id' => $listing_id,
+            'status'     => $default_status,
+        ), 'Listing submitted successfully and awaiting review', 201);
     }
 
     /**
@@ -565,6 +588,12 @@ class ZipBiz_Vendor {
         if (isset($params['visiting_fee'])) {
             update_post_meta($listing_id, '_visiting_fee', sanitize_text_field($params['visiting_fee']));
         }
+        if (isset($params['additional_fee_label'])) {
+            update_post_meta($listing_id, '_additional_fee_label', sanitize_text_field($params['additional_fee_label']));
+        }
+        if (isset($params['additional_fee_amount'])) {
+            update_post_meta($listing_id, '_additional_fee_amount', sanitize_text_field($params['additional_fee_amount']));
+        }
         if (isset($params['inspection_fee'])) {
             update_post_meta($listing_id, '_inspection_fee', sanitize_text_field($params['inspection_fee']));
         }
@@ -578,6 +607,9 @@ class ZipBiz_Vendor {
 
         if (isset($params['slot_limit'])) {
             update_post_meta($listing_id, '_slot_limit', intval($params['slot_limit']));
+        }
+        if (isset($params['slot_interval'])) {
+            update_post_meta($listing_id, '_slot_interval', sanitize_text_field($params['slot_interval']));
         }
 
         // Menu / Bookable Services
@@ -624,6 +656,9 @@ class ZipBiz_Vendor {
         if (!empty($params['logo']) || !empty($params['image'])) {
             $img_url = sanitize_text_field($params['logo'] ?? $params['image']);
             update_post_meta($listing_id, '_featured_image_url', $img_url);
+        }
+        if (!empty($params['image_id'])) {
+            set_post_thumbnail($listing_id, intval($params['image_id']));
         }
 
         // FAQs
@@ -826,5 +861,79 @@ class ZipBiz_Vendor {
         update_user_meta($user->ID, '_zipbiz_vendor_coupons', $coupons);
 
         return ZipBiz_REST_API::success_response($new_coupon, 'Coupon created successfully', 201);
+    }
+
+    /**
+     * Get vendor configuration (listing types, commission rate, moderation)
+     */
+    public function get_config($request) {
+        $types = array(
+            array('id' => 'service', 'name' => 'Service', 'icon' => 'build'),
+            array('id' => 'rent', 'name' => 'Rent', 'icon' => 'home'),
+        );
+        $commission_rate = floatval(get_option('listeo_commission_rate', '15'));
+        $moderation_status = get_option('listeo_new_listing_status', 'pending');
+        if (empty($moderation_status)) {
+            $moderation_status = 'pending';
+        }
+
+        return ZipBiz_REST_API::success_response(array(
+            'listing_types'   => $types,
+            'commission_rate' => $commission_rate,
+            'approval_status' => $moderation_status,
+        ));
+    }
+
+    /**
+     * Upload media file directly to WordPress Media Library
+     */
+    public function upload_media($request) {
+        $user = wp_get_current_user();
+        require_once(ABSPATH . 'wp-admin/includes/image.php');
+        require_once(ABSPATH . 'wp-admin/includes/file.php');
+        require_once(ABSPATH . 'wp-admin/includes/media.php');
+
+        // Check multipart $_FILES
+        if (!empty($_FILES['file'])) {
+            $attachment_id = media_handle_upload('file', 0);
+            if (is_wp_error($attachment_id)) {
+                return ZipBiz_REST_API::error_response('UPLOAD_FAILED', $attachment_id->get_error_message(), 500);
+            }
+            $url = wp_get_attachment_url($attachment_id);
+            return ZipBiz_REST_API::success_response(array(
+                'id'  => $attachment_id,
+                'url' => $url,
+            ), 'File uploaded successfully');
+        }
+
+        // Check base64 upload
+        $params = $request->get_json_params();
+        if (!empty($params['base64_data'])) {
+            $data = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $params['base64_data']));
+            $filename = sanitize_file_name($params['file_name'] ?? ('upload_' . time() . '.jpg'));
+            $upload = wp_upload_bits($filename, null, $data);
+            if (!empty($upload['error'])) {
+                return ZipBiz_REST_API::error_response('UPLOAD_FAILED', $upload['error'], 500);
+            }
+            $file_path = $upload['file'];
+            $file_name = basename($file_path);
+            $file_type = wp_check_filetype($file_name, null);
+            $attachment = array(
+                'post_mime_type' => $file_type['type'],
+                'post_title'     => preg_replace('/\.[^.]+$/', '', $file_name),
+                'post_content'   => '',
+                'post_status'    => 'inherit'
+            );
+            $attachment_id = wp_insert_attachment($attachment, $file_path);
+            $attach_data = wp_generate_attachment_metadata($attachment_id, $file_path);
+            wp_update_attachment_metadata($attachment_id, $attach_data);
+            $url = wp_get_attachment_url($attachment_id);
+            return ZipBiz_REST_API::success_response(array(
+                'id'  => $attachment_id,
+                'url' => $url,
+            ), 'File uploaded successfully');
+        }
+
+        return ZipBiz_REST_API::error_response('NO_FILE', 'No file was provided in upload', 400);
     }
 }

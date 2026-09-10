@@ -1998,6 +1998,7 @@ class Product {
             }
           }
         }
+      }
       if (imageFeature == null || imageFeature == kDefaultImage || imageFeature!.isEmpty) {
         if (json['featured_image'] is String && (json['featured_image'] as String).isNotEmpty) {
           imageFeature = json['featured_image'];

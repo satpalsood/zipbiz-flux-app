@@ -1672,7 +1672,7 @@ class _ZipBizAddEditListingScreenState
                 ],
               ),
               const Divider(height: 24),
-              if (isNew && _selectedPackageName != null)
+              if (widget.initialListing == null && _selectedPackageName != null)
                 _buildReviewRow('Subscription Plan', _selectedPackageName!),
               _buildReviewRow('Address', _friendlyAddressController.text.isNotEmpty ? _friendlyAddressController.text : _addressController.text),
               _buildReviewRow('Visiting Fee', '₹${_visitingFeeController.text}'),

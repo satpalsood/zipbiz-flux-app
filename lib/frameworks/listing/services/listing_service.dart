@@ -81,7 +81,7 @@ class ListingService extends WooCommerceService {
     }
     try {
       var niceName = '${firstName!} ${lastName!}';
-      var data = {
+      var data = <String, dynamic>{
         'user_email': email ?? username,
         'user_login': username ?? email,
         'username': username ?? email,
@@ -92,6 +92,7 @@ class ListingService extends WooCommerceService {
         'first_name': firstName,
         'last_name': lastName,
         'phone': phoneNumber,
+      };
       if (ServerConfig().isListeoType) {
         data['role'] = isVendor ? 'owner' : 'guest';
       }

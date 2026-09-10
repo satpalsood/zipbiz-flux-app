@@ -19,6 +19,9 @@ class ZipBizApiService {
     if (user != null && (user.cookie?.isNotEmpty ?? false)) {
       headers['User-Cookie'] = user.cookie!;
     }
+    if (user != null && user.id != null) {
+      headers['X-User-ID'] = user.id.toString();
+    }
     return headers;
   }
 
@@ -245,7 +248,7 @@ class ZipBizApiService {
     final response = await http.post(url, headers: _getHeaders(user), body: jsonEncode(data));
     final res = jsonDecode(response.body);
 
-    if (response.statusCode == 200 && res['success'] == true) {
+    if (response.statusCode >= 200 && response.statusCode < 300 && res['success'] == true) {
       return (res['data'] as Map<String, dynamic>?) ?? {};
     } else {
       throw Exception(res['message'] ?? 'Failed to create listing');
@@ -262,7 +265,7 @@ class ZipBizApiService {
     final response = await http.post(url, headers: _getHeaders(user), body: jsonEncode(data));
     final res = jsonDecode(response.body);
 
-    if (response.statusCode == 200 && res['success'] == true) {
+    if (response.statusCode >= 200 && response.statusCode < 300 && res['success'] == true) {
       return (res['data'] as Map<String, dynamic>?) ?? {};
     } else {
       throw Exception(res['message'] ?? 'Failed to update listing');
@@ -488,5 +491,52 @@ class ZipBizApiService {
     } else {
       throw Exception(data['message'] ?? 'Failed to upload media');
     }
+  }
+
+  /// Get vendor packages & status
+  Future<Map<String, dynamic>> getVendorPackages(User user) async {
+    try {
+      final url = Uri.parse('$_baseUrl/vendor/packages');
+      final response = await http.get(url, headers: _getHeaders(user));
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return (data['data'] as Map<String, dynamic>?) ?? {};
+      }
+    } catch (_) {}
+    return {
+      'packages': [],
+      'user_packages': [],
+      'can_add_listing': true,
+      'current_listings': 0,
+    };
+  }
+
+  /// Select free Silver package
+  Future<Map<String, dynamic>> selectFreeVendorPackage(User user, int productId) async {
+    final url = Uri.parse('$_baseUrl/vendor/packages/select-free');
+    final body = jsonEncode({'product_id': productId});
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode >= 200 && response.statusCode < 300 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to activate free package');
+    }
+  }
+
+  /// Get dynamic listing form fields and taxonomies
+  Future<Map<String, dynamic>> getListingFormFields(User user, {String type = 'service'}) async {
+    try {
+      final url = Uri.parse('$_baseUrl/vendor/listing-form-fields?type=$type');
+      final response = await http.get(url, headers: _getHeaders(user));
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return (data['data'] as Map<String, dynamic>?) ?? {};
+      }
+    } catch (_) {}
+    return {'fields': {}, 'categories': [], 'regions': []};
   }
 }

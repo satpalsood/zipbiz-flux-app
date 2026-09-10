@@ -92,10 +92,10 @@ class ListingService extends WooCommerceService {
         'first_name': firstName,
         'last_name': lastName,
         'phone': phoneNumber,
-      };
-      if (isVendor && ServerConfig().isListeoType) {
-        data['role'] = 'owner';
+      if (ServerConfig().isListeoType) {
+        data['role'] = isVendor ? 'owner' : 'guest';
       }
+
       final response = await httpPost(
           '$domain/wp-json/api/flutter_user/sign_up/?insecure=cool&'.toUri()!,
           body: convert.jsonEncode(data),
@@ -603,13 +603,20 @@ class ListingService extends WooCommerceService {
     var bookings = <ListingBooking>[];
     try {
       final response = await httpGet(endpoint.toUri()!, refreshCache: true);
-      for (var item in convert.jsonDecode(response.body)) {
-        var booking = ListingBooking.fromJson(item);
-        bookings.add(booking);
+      final decoded = convert.jsonDecode(response.body);
+      final list = decoded is List
+          ? decoded
+          : (decoded is Map && decoded['data'] is List ? decoded['data'] as List : <dynamic>[]);
+      for (var item in list) {
+        if (item is Map) {
+          var booking = ListingBooking.fromJson(item);
+          bookings.add(booking);
+        }
       }
     } catch (e) {
       printLog('listing_service.dart getBooking $e');
     }
+
     return bookings;
   }
 

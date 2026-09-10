@@ -1998,6 +1998,19 @@ class Product {
             }
           }
         }
+      if (imageFeature == null || imageFeature == kDefaultImage || imageFeature!.isEmpty) {
+        if (json['featured_image'] is String && (json['featured_image'] as String).isNotEmpty) {
+          imageFeature = json['featured_image'];
+        } else if (json['featured_image_url'] is String && (json['featured_image_url'] as String).isNotEmpty) {
+          imageFeature = json['featured_image_url'];
+        } else if (json['image'] is String && (json['image'] as String).isNotEmpty) {
+          imageFeature = json['image'];
+        } else if (json['listing_data'] is Map && json['listing_data']['_featured_image_url'] is String) {
+          imageFeature = json['listing_data']['_featured_image_url'];
+        }
+      }
+      if (images.isEmpty && imageFeature != null && imageFeature != kDefaultImage && imageFeature!.isNotEmpty) {
+        images.add(imageFeature!);
       }
 
       final items =
@@ -2008,6 +2021,39 @@ class Product {
           if (item.menu.isNotEmpty) {
             listingMenu!.add(item);
           }
+        }
+      }
+
+      /// Populate metaData from listing_data and direct properties
+      metaData = [];
+      if (json['meta_data'] is List) {
+        for (var m in json['meta_data']) {
+          if (m is Map) {
+            metaData.add(Map<String, dynamic>.from(m));
+          }
+        }
+      }
+      if (json['listing_data'] is Map) {
+        (json['listing_data'] as Map).forEach((k, v) {
+          metaData.add({'key': k.toString(), 'value': v});
+        });
+      }
+      for (final k in [
+        '_visiting_fee',
+        'visiting_fee',
+        '_inspection_fee',
+        'inspection_fee',
+        '_additional_fee_label',
+        'additional_fee_label',
+        '_additional_fee_amount',
+        'additional_fee_amount',
+        '_min_booking_value',
+        'min_booking_value',
+        '_faq',
+        'faq',
+      ]) {
+        if (json[k] != null && !metaData.any((m) => m['key'] == k)) {
+          metaData.add({'key': k, 'value': json[k]});
         }
       }
 
@@ -2031,6 +2077,7 @@ class Product {
     } catch (err, trace) {
       printLog('err when parsed json Listing $trace');
     }
+
   }
 
   ///----FLUXSTORE LISTING----////

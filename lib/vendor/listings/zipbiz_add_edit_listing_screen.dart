@@ -102,6 +102,15 @@ class _ZipBizAddEditListingScreenState
   final List<int> _galleryImageIds = [];
   List<Map<String, dynamic>> _backendListingTypes = [];
 
+  // Subscription Packages & Sync
+  List<Map<String, dynamic>> _packages = [];
+  List<Map<String, dynamic>> _userPackages = [];
+  bool _canAddListing = true;
+  bool _isLoadingPackages = false;
+  int? _selectedPackageProductId;
+  String? _selectedPackageName;
+  bool _isActivatingPackage = false;
+
   // Step 8: FAQ Section
   bool _faqEnabled = true;
   final List<Map<String, String>> _faqs = [];
@@ -112,8 +121,65 @@ class _ZipBizAddEditListingScreenState
     _initDefaults();
     if (widget.initialListing != null) {
       _populateInitialData(widget.initialListing!);
+    } else {
+      _loadPackages();
     }
     _loadVendorConfig();
+    _loadDynamicFields();
+  }
+
+  Future<void> _loadPackages() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+    setState(() => _isLoadingPackages = true);
+    try {
+      final res = await ZipBizApiService().getVendorPackages(user);
+      if (res['packages'] is List) {
+        _packages = (res['packages'] as List).map((p) => Map<String, dynamic>.from(p)).toList();
+      }
+      if (res['user_packages'] is List) {
+        _userPackages = (res['user_packages'] as List).map((p) => Map<String, dynamic>.from(p)).toList();
+      }
+      _canAddListing = res['can_add_listing'] == true;
+      if (_userPackages.isNotEmpty) {
+        final active = _userPackages.firstWhere(
+          (p) => p['is_active'] == true,
+          orElse: () => _userPackages.first,
+        );
+        _selectedPackageProductId = active['product_id'] ?? active['id'];
+        _selectedPackageName = active['name'];
+      } else if (_packages.isNotEmpty) {
+        final freePkg = _packages.firstWhere((p) => p['is_free'] == true, orElse: () => _packages.first);
+        _selectedPackageProductId = freePkg['id'];
+        _selectedPackageName = freePkg['name'];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _isLoadingPackages = false);
+  }
+
+  Future<void> _loadDynamicFields() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+    try {
+      final data = await ZipBizApiService().getListingFormFields(user, type: _listingType);
+      if (data['categories'] is List) {
+        for (var c in (data['categories'] as List)) {
+          final name = c['name']?.toString();
+          if (name != null && name.isNotEmpty && !_categories.contains(name)) {
+            _categories.add(name);
+          }
+        }
+      }
+      if (data['regions'] is List) {
+        for (var r in (data['regions'] as List)) {
+          final name = r['name']?.toString();
+          if (name != null && name.isNotEmpty && !_regions.contains(name)) {
+            _regions.add(name);
+          }
+        }
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   Future<void> _loadVendorConfig() async {
@@ -148,15 +214,48 @@ class _ZipBizAddEditListingScreenState
   void _populateInitialData(Map<String, dynamic> item) {
     _listingType = item['listing_type'] ?? 'service';
     _titleController.text = item['title'] ?? '';
-    _selectedCategory = (item['categories'] is List && (item['categories'] as List).isNotEmpty)
-        ? item['categories'][0]['name'] ?? 'Electrician'
-        : 'Electrician';
-    _logoUrlController.text = item['featured_image'] ?? '';
+
+    // Safe category parsing (supports String, Map, or List)
+    String catName = 'Electrician';
+    if (item['category'] != null && item['category'].toString().trim().isNotEmpty) {
+      catName = item['category'].toString().trim();
+    } else if (item['categories'] is List && (item['categories'] as List).isNotEmpty) {
+      final first = (item['categories'] as List).first;
+      if (first is Map) {
+        catName = (first['name'] ?? first['title'] ?? 'Electrician').toString();
+      } else if (first != null) {
+        catName = first.toString();
+      }
+    }
+    if (!_categories.contains(catName)) {
+      _categories.insert(0, catName);
+    }
+    _selectedCategory = catName;
+
+    _logoUrlController.text = item['featured_image'] ?? item['featured_image_url'] ?? item['image'] ?? '';
     _addressController.text = item['address'] ?? '';
     _friendlyAddressController.text = item['friendly_address'] ?? '';
-    _selectedRegion = (item['regions'] is List && (item['regions'] as List).isNotEmpty)
-        ? item['regions'][0]['name'] ?? 'Mohali'
-        : 'Mohali';
+
+    // Safe region parsing (supports String, Map, or List)
+    String regName = 'Mohali';
+    if (item['region'] != null && item['region'].toString().trim().isNotEmpty) {
+      regName = item['region'].toString().trim();
+    } else if (item['regions'] is List && (item['regions'] as List).isNotEmpty) {
+      final first = (item['regions'] as List).first;
+      if (first is Map) {
+        regName = (first['name'] ?? first['title'] ?? 'Mohali').toString();
+      } else if (first != null) {
+        regName = first.toString();
+      }
+    }
+    if (!_regions.contains(regName)) {
+      _regions.insert(0, regName);
+    }
+    _selectedRegion = regName;
+
+    _serviceAreaController.text = item['service_area'] ?? '';
+    _subCategoryController.text = item['sub_category'] ?? '';
+    _keywordsController.text = item['keywords'] ?? '';
     _descriptionController.text = item['description'] ?? '';
     _phoneController.text = item['phone'] ?? '';
     _emailController.text = item['email'] ?? '';
@@ -166,14 +265,20 @@ class _ZipBizAddEditListingScreenState
     _slotInterval = int.tryParse('${item['slot_interval']}') ?? 1;
     _additionalFeeLabelController.text = item['additional_fee_label'] ?? '';
     _additionalFeeAmountController.text = item['additional_fee_amount'] != null ? '${item['additional_fee_amount']}' : '';
-    _bookingEnabled = item['booking_status'] == 'on';
-    _slotsEnabled = item['slots_status'] == 'on';
+    
+    // Resilient boolean evaluation
+    _bookingEnabled = item['booking_status'] == true || item['booking_status'] == 'on' || item['booking_status'] == '1';
+    _slotsEnabled = item['slots_status'] == true || item['slots_status'] == 'on' || item['slots_status'] == '1';
     _slotLimit = int.tryParse('${item['slot_limit']}') ?? 5;
 
     if (item['gallery'] is List) {
       _galleryImages.clear();
       for (var img in (item['gallery'] as List)) {
-        if (img is String && img.isNotEmpty) _galleryImages.add(img);
+        if (img is String && img.isNotEmpty) {
+          _galleryImages.add(img);
+        } else if (img is Map && img['url'] != null) {
+          _galleryImages.add(img['url'].toString());
+        }
       }
     }
 
@@ -187,7 +292,7 @@ class _ZipBizAddEditListingScreenState
               'name': elem['name'] ?? '',
               'price': '${elem['price'] ?? ''}',
               'description': elem['description'] ?? '',
-              'bookable': elem['bookable'] == 'on' || elem['bookable'] == true,
+              'bookable': elem['bookable'] == 'on' || elem['bookable'] == true || elem['bookable'] == '1',
             });
           }
         }
@@ -197,10 +302,12 @@ class _ZipBizAddEditListingScreenState
     if (item['faq'] is List) {
       _faqs.clear();
       for (var f in (item['faq'] as List)) {
-        _faqs.add({
-          'question': f['question'] ?? '',
-          'answer': f['answer'] ?? '',
-        });
+        if (f is Map) {
+          _faqs.add({
+            'question': f['question']?.toString() ?? '',
+            'answer': f['answer']?.toString() ?? '',
+          });
+        }
       }
     }
   }
@@ -320,6 +427,7 @@ class _ZipBizAddEditListingScreenState
     final payload = {
       'listing_type': _listingType,
       'title': _titleController.text.trim(),
+      if (_selectedPackageProductId != null) 'package_id': _selectedPackageProductId,
       'category': _selectedCategory,
       'sub_category': _subCategoryController.text.trim(),
       'keywords': _keywordsController.text.trim(),
@@ -502,17 +610,31 @@ class _ZipBizAddEditListingScreenState
 
   @override
   Widget build(BuildContext context) {
-    final steps = [
-      'Type',
-      'Basic',
-      'Location',
-      'Gallery',
-      'Contact',
-      'Hours',
-      'Pricing',
-      'FAQs',
-      'Review',
-    ];
+    final isNew = widget.initialListing == null;
+    final steps = isNew
+        ? [
+            'Plan',
+            'Type',
+            'Basic',
+            'Location',
+            'Gallery',
+            'Contact',
+            'Hours',
+            'Pricing',
+            'FAQs',
+            'Review',
+          ]
+        : [
+            'Type',
+            'Basic',
+            'Location',
+            'Gallery',
+            'Contact',
+            'Hours',
+            'Pricing',
+            'FAQs',
+            'Review',
+          ];
 
     return Scaffold(
       backgroundColor: ZipBizColors.surface,
@@ -597,6 +719,18 @@ class _ZipBizAddEditListingScreenState
                       isLoading: _isSubmitting,
                       onPressed: () {
                         if (_currentStep < steps.length - 1) {
+                          if (isNew && _currentStep == 0) {
+                            // Check if package is active or selected
+                            if (!_canAddListing && (_userPackages.isEmpty || _userPackages.every((p) => p['is_active'] != true))) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please activate the free Silver plan or choose a plan to proceed.'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+                          }
                           setState(() => _currentStep++);
                         } else {
                           _submitListing();
@@ -614,28 +748,241 @@ class _ZipBizAddEditListingScreenState
   }
 
   Widget _buildStepContent() {
-    switch (_currentStep) {
+    final isNew = widget.initialListing == null;
+    final effectiveStep = isNew ? _currentStep : _currentStep + 1;
+
+    switch (effectiveStep) {
       case 0:
-        return _buildStep1Type();
+        return _buildStep0Plan();
       case 1:
-        return _buildStep2Basic();
+        return _buildStep1Type();
       case 2:
-        return _buildStep3Location();
+        return _buildStep2Basic();
       case 3:
-        return _buildStep4Gallery();
+        return _buildStep3Location();
       case 4:
-        return _buildStep5Contact();
+        return _buildStep4Gallery();
       case 5:
-        return _buildStep6Hours();
+        return _buildStep5Contact();
       case 6:
-        return _buildStep7Pricing();
+        return _buildStep6Hours();
       case 7:
-        return _buildStep8Faq();
+        return _buildStep7Pricing();
       case 8:
+        return _buildStep8Faq();
+      case 9:
         return _buildStep9Review();
       default:
         return const SizedBox();
     }
+  }
+
+  // Step 0: Plan Selection
+  Widget _buildStep0Plan() {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    final defaultPackages = [
+      {
+        'id': 1001,
+        'name': 'Silver Plan',
+        'price': 0,
+        'price_html': 'Free',
+        'is_free': true,
+        'listing_limit': 1,
+        'description': 'Free starter plan. 1 active listing with basic visibility and direct bookings.',
+      },
+      {
+        'id': 1002,
+        'name': 'Gold Plan',
+        'price': 499,
+        'price_html': '₹499',
+        'is_free': false,
+        'listing_limit': 5,
+        'description': 'Up to 5 listings with priority placement in search results and full analytics.',
+      },
+      {
+        'id': 1003,
+        'name': 'Diamond Plan',
+        'price': 999,
+        'price_html': '₹999',
+        'is_free': false,
+        'listing_limit': 0,
+        'description': 'Unlimited listings, top banner placement, verified badge, and instant approval.',
+      },
+    ];
+
+    final displayPackages = _packages.isNotEmpty ? _packages : defaultPackages;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Choose Subscription Plan', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text('Select the listing plan that suits your business. Silver plan is 100% free for your first listing!', style: ZipBizTypography.bodySmall),
+        const SizedBox(height: 16),
+
+        // Active Package Banner
+        if (_userPackages.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade300),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.verified, color: Colors.green, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Active Plan: ${_userPackages.first['name'] ?? 'Silver Plan'}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Remaining Listings: ${_userPackages.first['remaining'] ?? '1'}',
+                        style: TextStyle(fontSize: 12, color: Colors.green.shade800),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(20)),
+                  child: const Text('ACTIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
+
+        if (_isLoadingPackages)
+          const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+        else
+          ...displayPackages.map((pkg) {
+            final id = pkg['id'] as int;
+            final isFree = pkg['is_free'] == true || (pkg['price'] is num && (pkg['price'] as num) <= 0);
+            final isSelected = _selectedPackageProductId == id;
+            final hasActivePackage = _userPackages.any((p) => (p['product_id'] == id || p['id'] == id) && p['is_active'] == true);
+
+            return ZipBizCard(
+              margin: const EdgeInsets.only(bottom: 12),
+              color: isSelected ? ZipBizColors.primaryFixed.withOpacity(0.15) : Colors.white,
+              border: Border.all(
+                color: isSelected ? ZipBizColors.primaryContainer : ZipBizColors.surfaceContainer,
+                width: isSelected ? 2 : 1,
+              ),
+              onTap: () {
+                setState(() {
+                  _selectedPackageProductId = id;
+                  _selectedPackageName = pkg['name'];
+                });
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isFree ? Icons.eco : (id == 1002 ? Icons.military_tech : Icons.diamond),
+                            color: isFree ? Colors.teal : (id == 1002 ? Colors.amber.shade700 : Colors.purple),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(pkg['name'] ?? 'Plan', style: ZipBizTypography.labelLarge.copyWith(fontSize: 16)),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isFree ? Colors.green.shade100 : ZipBizColors.primaryFixed.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          pkg['price_html'] ?? (isFree ? 'Free' : '₹${pkg['price']}'),
+                          style: TextStyle(
+                            color: isFree ? Colors.green.shade800 : ZipBizColors.primaryContainer,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(pkg['description'] ?? '', style: ZipBizTypography.bodySmall),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        pkg['listing_limit'] == 0 || pkg['listing_limit'] == null
+                            ? '• Unlimited Listings'
+                            : '• ${pkg['listing_limit']} Listing${pkg['listing_limit'] > 1 ? "s" : ""} Allowed',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
+                      ),
+                      if (hasActivePackage)
+                        const Text('Currently Subscribed', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold))
+                      else if (isFree)
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: _isActivatingPackage
+                              ? null
+                              : () async {
+                                  if (user == null) return;
+                                  setState(() => _isActivatingPackage = true);
+                                  try {
+                                    await ZipBizApiService().selectFreeVendorPackage(user, id);
+                                    await _loadPackages();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Silver Free Plan activated! You can now add your listing.'), backgroundColor: Colors.green),
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Plan activation: $e'), backgroundColor: Colors.orange),
+                                    );
+                                  } finally {
+                                    if (mounted) setState(() => _isActivatingPackage = false);
+                                  }
+                                },
+                          child: _isActivatingPackage
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Text('Activate Free', style: TextStyle(fontSize: 12)),
+                        )
+                      else
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _selectedPackageProductId = id;
+                              _selectedPackageName = pkg['name'];
+                            });
+                          },
+                          child: Text(isSelected ? 'Selected' : 'Select', style: const TextStyle(fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
   }
 
   // Step 1: Listing Type
@@ -1325,6 +1672,8 @@ class _ZipBizAddEditListingScreenState
                 ],
               ),
               const Divider(height: 24),
+              if (isNew && _selectedPackageName != null)
+                _buildReviewRow('Subscription Plan', _selectedPackageName!),
               _buildReviewRow('Address', _friendlyAddressController.text.isNotEmpty ? _friendlyAddressController.text : _addressController.text),
               _buildReviewRow('Visiting Fee', '₹${_visitingFeeController.text}'),
               _buildReviewRow('Inspection Fee', '₹${_inspectionFeeController.text}'),

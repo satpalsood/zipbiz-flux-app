@@ -38,22 +38,43 @@ class ListingBooking {
     price = json['price'];
     createdDate = json['created'];
     orderId = json['order_id'];
-    orderStatus = json['order_status'] ?? '';
-    var commentJson = jsonDecode(json['comment']);
+    Map commentJson = {};
+    if (json['comment'] != null) {
+      if (json['comment'] is String && (json['comment'] as String).trim().isNotEmpty) {
+        try {
+          final parsed = jsonDecode(json['comment']);
+          if (parsed is Map) {
+            commentJson = parsed;
+          }
+        } catch (_) {}
+      } else if (json['comment'] is Map) {
+        commentJson = json['comment'];
+      }
+    }
+
     if (commentJson['adults'] != null) {
-      adults['adults'] = commentJson['adults'];
+      adults['adults'] = commentJson['adults']?.toString();
     }
     if (commentJson['tickets'] != null) {
-      adults['tickets'] = commentJson['tickets'];
+      adults['tickets'] = commentJson['tickets']?.toString();
     }
-    if (commentJson['service'] is bool) {
-      return;
-    }
-    for (var item in commentJson['service']) {
-      services.add({
-        'name': item['service']['name'],
-        'price': item['service']['price'],
-      });
+    final svcList = commentJson['service'];
+    if (svcList is List) {
+      for (var item in svcList) {
+        if (item is Map) {
+          final sName = item['service'] is Map
+              ? item['service']['name']?.toString()
+              : item['name']?.toString();
+          final sPrice = item['service'] is Map
+              ? item['service']['price']?.toString()
+              : item['price']?.toString();
+          services.add({
+            'name': sName ?? '',
+            'price': sPrice ?? '',
+          });
+        }
+      }
     }
   }
 }
+

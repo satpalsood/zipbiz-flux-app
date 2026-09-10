@@ -13,6 +13,7 @@ class ZipBizButton extends StatelessWidget {
   final double? width;
   final double height;
   final double borderRadius;
+  final EdgeInsetsGeometry? padding;
 
   const ZipBizButton({
     super.key,
@@ -24,6 +25,7 @@ class ZipBizButton extends StatelessWidget {
     this.width,
     this.height = 48,
     this.borderRadius = 12,
+    this.padding,
   });
 
   @override
@@ -31,10 +33,16 @@ class ZipBizButton extends StatelessWidget {
     if (type == ZipBizButtonType.text) {
       return TextButton(
         onPressed: isLoading ? null : onPressed,
-        child: Text(
-          text,
-          style: ZipBizTypography.labelLarge.copyWith(
-            color: ZipBizColors.primaryContainer,
+        style: TextButton.styleFrom(
+          padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        ),
+        child: Center(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: ZipBizTypography.labelLarge.copyWith(
+              color: ZipBizColors.primaryContainer,
+            ),
           ),
         ),
       );
@@ -51,7 +59,7 @@ class ZipBizButton extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(borderRadius),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           ),
           child: _buildChild(ZipBizColors.primaryContainer),
         ),
@@ -74,7 +82,7 @@ class ZipBizButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         ),
         child: _buildChild(fgColor),
       ),
@@ -94,23 +102,37 @@ class ZipBizButton extends StatelessWidget {
     }
 
     if (icon != null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: ZipBizTypography.labelLarge.copyWith(color: color),
-          ),
-        ],
+      return Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: ZipBizTypography.labelLarge.copyWith(color: color),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return Text(
-      text,
-      style: ZipBizTypography.labelLarge.copyWith(color: color),
+    return Center(
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: ZipBizTypography.labelLarge.copyWith(color: color),
+      ),
     );
   }
 }
+

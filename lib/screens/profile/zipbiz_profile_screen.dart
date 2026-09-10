@@ -219,16 +219,10 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
                     'Booking alerts, dispatch updates & offers',
                     onTap: () => FluxNavigate.pushNamed(RouteList.notify, context: context),
                   ),
-                  const Divider(height: 1),
-                  _buildListTile(
-                    Icons.location_city_outlined,
-                    'Service Area',
-                    'Tricity (Mohali, Chandigarh, Panchkula)',
-                    onTap: () {},
-                  ),
                 ],
               ),
             ),
+
             const SizedBox(height: 20),
 
             // Support & Legal
@@ -283,15 +277,9 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'zipbiz_support_fab',
-        backgroundColor: const Color(0xFF25D366),
-        icon: const Icon(Icons.chat, color: Colors.white, size: 20),
-        label: const Text('Support', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        onPressed: _openWhatsAppSupport,
-      ),
     );
   }
+
 
   void _openWhatsAppSupport() {
     Tools.launchURL('https://wa.me/917009218289?text=${Uri.encodeComponent("Hello ZipBiz Support, I need assistance with my service booking.")}');

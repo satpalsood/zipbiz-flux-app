@@ -55,3 +55,114 @@ function zipbiz_mobile_api_activate() {
         update_option('zipbiz_fcm_server_key', '');
     }
 }
+
+/**
+ * Automatically assign role on registration:
+ * Vendors get 'owner' role, customers get 'guest' role
+ */
+add_action('user_register', 'zipbiz_assign_user_role_on_register', 10, 1);
+function zipbiz_assign_user_role_on_register($user_id) {
+    $user = get_user_by('id', $user_id);
+    if (!$user) return;
+
+    $requested_role = isset($_REQUEST['role']) ? sanitize_text_field($_REQUEST['role']) : '';
+    $is_vendor = (!empty($_REQUEST['is_vendor']) && $_REQUEST['is_vendor'] !== 'false');
+
+    if ($requested_role === 'owner' || $requested_role === 'vendor' || $requested_role === 'seller' || $is_vendor) {
+        $user->set_role('owner');
+    } else {
+        if (!in_array('administrator', (array)$user->roles)) {
+            $user->set_role('guest');
+        }
+    }
+}
+
+/**
+ * Ensure featured image and custom form fields are exposed in REST API
+ */
+add_filter('rest_prepare_listing', 'zipbiz_rest_prepare_listing_meta', 10, 3);
+function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
+    if (!is_object($response) || !method_exists($response, 'get_data')) {
+        return $response;
+    }
+    $data = $response->get_data();
+    $listing_id = $post->ID;
+
+    // Ensure featured image URL is populated
+    $featured_url = get_the_post_thumbnail_url($listing_id, 'full');
+    if (empty($featured_url)) {
+        $featured_url = get_post_meta($listing_id, '_featured_image_url', true);
+    }
+    if (empty($featured_url)) {
+        $gallery = get_post_meta($listing_id, '_gallery', true);
+        if (is_array($gallery) && !empty($gallery)) {
+            $first = reset($gallery);
+            $featured_url = is_numeric($first) ? wp_get_attachment_url($first) : strval($first);
+        }
+    }
+    if (!empty($featured_url)) {
+        $data['featured_image'] = $featured_url;
+        $data['featured_image_url'] = $featured_url;
+        $data['image'] = $featured_url;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_featured_image_url'] = $featured_url;
+    }
+
+    // Visiting fee & custom pricing meta
+    $visiting_fee = get_post_meta($listing_id, '_visiting_fee', true);
+    if ($visiting_fee !== '') {
+        $data['visiting_fee'] = $visiting_fee;
+        $data['_visiting_fee'] = $visiting_fee;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_visiting_fee'] = $visiting_fee;
+        $data['listing_data']['visiting_fee'] = $visiting_fee;
+    }
+
+    $inspection_fee = get_post_meta($listing_id, '_inspection_fee', true);
+    if ($inspection_fee !== '') {
+        $data['inspection_fee'] = $inspection_fee;
+        $data['_inspection_fee'] = $inspection_fee;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_inspection_fee'] = $inspection_fee;
+    }
+
+    $add_label = get_post_meta($listing_id, '_additional_fee_label', true);
+    if (!empty($add_label)) {
+        $data['additional_fee_label'] = $add_label;
+        $data['_additional_fee_label'] = $add_label;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_additional_fee_label'] = $add_label;
+    }
+
+    $add_amount = get_post_meta($listing_id, '_additional_fee_amount', true);
+    if (!empty($add_amount)) {
+        $data['additional_fee_amount'] = $add_amount;
+        $data['_additional_fee_amount'] = $add_amount;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_additional_fee_amount'] = $add_amount;
+    }
+
+    $min_booking = get_post_meta($listing_id, '_min_booking_value', true);
+    if (!empty($min_booking)) {
+        $data['min_booking_value'] = $min_booking;
+        $data['_min_booking_value'] = $min_booking;
+        if (!isset($data['listing_data']) || !is_array($data['listing_data'])) {
+            $data['listing_data'] = array();
+        }
+        $data['listing_data']['_min_booking_value'] = $min_booking;
+    }
+
+    $response->set_data($data);
+    return $response;
+}
+

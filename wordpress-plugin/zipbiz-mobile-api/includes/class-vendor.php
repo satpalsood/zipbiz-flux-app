@@ -73,6 +73,27 @@ class ZipBiz_Vendor {
             'permission_callback' => array($this, 'check_vendor_auth'),
         ));
 
+        // Listing Subscription Packages (Silver, Gold, Diamond)
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/packages', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_packages'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
+
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/packages/select-free', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'select_free_package'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
+
+        // Dynamic Form Fields Schema from website
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/listing-form-fields', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_listing_form_fields'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
+
+
         // Wallet & Payout
         register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/wallet', array(
             'methods'  => 'GET',
@@ -153,6 +174,10 @@ class ZipBiz_Vendor {
      * Get IDs of all listings owned by current user (strict author isolation)
      */
     private function get_vendor_listing_ids($user_id) {
+        $user_id = intval($user_id);
+        if ($user_id <= 0) {
+            return array();
+        }
         $args = array(
             'post_type'      => 'listing',
             'author'         => $user_id,
@@ -162,6 +187,7 @@ class ZipBiz_Vendor {
         );
         return get_posts($args);
     }
+
 
     /**
      * Vendor Dashboard KPI Stats
@@ -432,45 +458,59 @@ class ZipBiz_Vendor {
             $post = get_post($lid);
             if (!$post) continue;
 
-            $cats = wp_get_post_terms($lid, 'listing_category', array('fields' => 'names'));
+            $cats = wp_get_post_terms($lid, 'service_category', array('fields' => 'names'));
+            if (empty($cats)) {
+                $cats = wp_get_post_terms($lid, 'listing_category', array('fields' => 'names'));
+            }
             $regions = wp_get_post_terms($lid, 'region', array('fields' => 'names'));
             $menu = get_post_meta($lid, '_menu', true) ?: array();
             $faq = get_post_meta($lid, '_faq', true) ?: array();
 
+            $img_url = get_the_post_thumbnail_url($lid, 'medium') ?: get_post_meta($lid, '_featured_image_url', true) ?: '';
+            if (empty($img_url)) {
+                $gal = get_post_meta($lid, '_gallery', true);
+                if (is_array($gal) && !empty($gal)) {
+                    $first = reset($gal);
+                    $img_url = is_numeric($first) ? wp_get_attachment_url($first) : strval($first);
+                }
+            }
+
             $items[] = array(
-                'id'               => $post->ID,
-                'title'            => $post->post_title,
-                'status'           => $post->post_status,
-                'description'      => $post->post_content,
-                'type'             => get_post_meta($lid, '_listing_type', true) ?: 'service',
-                'category'         => !empty($cats) ? $cats[0] : 'General',
-                'categories'       => $cats,
-                'region'           => !empty($regions) ? $regions[0] : 'Mohali / Chandigarh',
-                'regions'          => $regions,
-                'address'          => get_post_meta($lid, '_address', true) ?: '',
-                'friendly_address' => get_post_meta($lid, '_friendly_address', true) ?: '',
-                'service_area'     => get_post_meta($lid, '_service_area', true) ?: '',
-                'phone'            => get_post_meta($lid, '_phone', true) ?: '',
-                'email'            => get_post_meta($lid, '_email', true) ?: '',
-                'website'          => get_post_meta($lid, '_website', true) ?: '',
-                'price'            => get_post_meta($lid, '_price_min', true) ?: '499',
+                'id'                    => $post->ID,
+                'title'                 => $post->post_title,
+                'status'                => $post->post_status,
+                'description'           => $post->post_content,
+                'type'                  => get_post_meta($lid, '_listing_type', true) ?: 'service',
+                'category'              => !empty($cats) ? $cats[0] : 'Electrician',
+                'categories'            => $cats,
+                'region'                => !empty($regions) ? $regions[0] : 'Mohali',
+                'regions'               => $regions,
+                'address'               => get_post_meta($lid, '_address', true) ?: '',
+                'friendly_address'      => get_post_meta($lid, '_friendly_address', true) ?: '',
+                'service_area'          => get_post_meta($lid, '_service_area', true) ?: '',
+                'phone'                 => get_post_meta($lid, '_phone', true) ?: '',
+                'email'                 => get_post_meta($lid, '_email', true) ?: '',
+                'website'               => get_post_meta($lid, '_website', true) ?: '',
+                'price'                 => get_post_meta($lid, '_price_min', true) ?: '499',
                 'visiting_fee'          => get_post_meta($lid, '_visiting_fee', true) ?: '',
                 'additional_fee_label'  => get_post_meta($lid, '_additional_fee_label', true) ?: '',
                 'additional_fee_amount' => get_post_meta($lid, '_additional_fee_amount', true) ?: '',
                 'inspection_fee'        => get_post_meta($lid, '_inspection_fee', true) ?: '',
-                'booking_status'        => get_post_meta($lid, '_booking_status', true) === 'on',
-                'slots_status'          => get_post_meta($lid, '_slots_status', true) === 'on',
+                'min_booking_value'     => get_post_meta($lid, '_min_booking_value', true) ?: '',
+                'booking_status'        => (get_post_meta($lid, '_booking_status', true) === 'on'),
+                'slots_status'          => (get_post_meta($lid, '_slots_status', true) === 'on'),
                 'slot_limit'            => get_post_meta($lid, '_slot_limit', true) ?: '3',
                 'slot_interval'         => get_post_meta($lid, '_slot_interval', true) ?: '2',
-                'image'            => get_the_post_thumbnail_url($lid, 'medium') ?: '',
-                'gallery'          => get_post_meta($lid, '_gallery', true) ?: array(),
-                'views'            => intval(get_post_meta($lid, '_count_views', true) ?: get_post_meta($lid, '_listing_views_count', true) ?: 0),
-                'rating'           => floatval(get_post_meta($lid, 'listeo-avg-rating', true) ?: 5.0),
-                'reviews_count'    => intval(get_comments_number($lid)),
-                'menu'             => $menu,
-                'faq'              => $faq,
-                'opening_hours'    => get_post_meta($lid, '_opening_hours', true) ?: array(),
-                'created'          => $post->post_date,
+                'featured_image'        => $img_url,
+                'image'                 => $img_url,
+                'gallery'               => get_post_meta($lid, '_gallery', true) ?: array(),
+                'views'                 => intval(get_post_meta($lid, '_count_views', true) ?: get_post_meta($lid, '_listing_views_count', true) ?: 0),
+                'rating'                => floatval(get_post_meta($lid, 'listeo-avg-rating', true) ?: 5.0),
+                'reviews_count'         => intval(get_comments_number($lid)),
+                'menu'                  => $menu,
+                'faq'                   => $faq,
+                'opening_hours'         => get_post_meta($lid, '_opening_hours', true) ?: array(),
+                'created'               => $post->post_date,
             );
         }
 
@@ -487,6 +527,38 @@ class ZipBiz_Vendor {
         $title = sanitize_text_field($params['title'] ?? '');
         if (empty($title)) {
             return ZipBiz_REST_API::error_response('INVALID_TITLE', 'Listing title is required', 400);
+        }
+
+        // 1. Subscription Package Validation & Allocation
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
+        $user_package_id = 0;
+
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+            $user_package = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE user_id = %d AND (package_count < package_limit OR package_limit = 0) ORDER BY id DESC LIMIT 1",
+                $user->ID
+            ), ARRAY_A);
+
+            if ($user_package) {
+                $user_package_id = intval($user_package['id']);
+            } else {
+                // If vendor has 0 listings, auto-assign Silver plan
+                $current_count = count($this->get_vendor_listing_ids($user->ID));
+                if ($current_count == 0) {
+                    $wpdb->insert($table_name, array(
+                        'user_id'          => $user->ID,
+                        'product_id'       => 1001,
+                        'order_id'         => 0,
+                        'package_count'    => 0,
+                        'package_duration' => 365,
+                        'package_limit'    => 1,
+                    ));
+                    $user_package_id = $wpdb->insert_id;
+                } else {
+                    return ZipBiz_REST_API::error_response('PACKAGE_LIMIT_REACHED', 'Your subscription package listing limit has been reached. Please upgrade to Gold or Diamond to add more listings.', 403);
+                }
+            }
         }
 
         $default_status = get_option('listeo_new_listing_status', 'pending');
@@ -507,13 +579,25 @@ class ZipBiz_Vendor {
             return ZipBiz_REST_API::error_response('CREATE_FAILED', 'Failed to create listing', 500);
         }
 
+        // Link package and increment count
+        if ($user_package_id > 0) {
+            update_post_meta($listing_id, '_user_package_id', $user_package_id);
+            if (function_exists('listeo_core_increase_package_count')) {
+                listeo_core_increase_package_count($user->ID, $user_package_id);
+            } else if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+                $wpdb->query($wpdb->prepare("UPDATE $table_name SET package_count = package_count + 1 WHERE id = %d", $user_package_id));
+            }
+        }
+
         $this->save_listing_meta($listing_id, $params);
 
         return ZipBiz_REST_API::success_response(array(
-            'listing_id' => $listing_id,
-            'status'     => $default_status,
+            'listing_id'      => $listing_id,
+            'status'          => $default_status,
+            'user_package_id' => $user_package_id,
         ), 'Listing submitted successfully and awaiting review', 201);
     }
+
 
     /**
      * Update listing
@@ -653,12 +737,17 @@ class ZipBiz_Vendor {
         }
 
         // Logo / Featured Image
-        if (!empty($params['logo']) || !empty($params['image'])) {
-            $img_url = sanitize_text_field($params['logo'] ?? $params['image']);
+        $img_url = sanitize_text_field($params['featured_image'] ?? $params['logo'] ?? $params['image'] ?? '');
+        if (!empty($img_url)) {
             update_post_meta($listing_id, '_featured_image_url', $img_url);
+            update_post_meta($listing_id, '_listing_logo', $img_url);
         }
         if (!empty($params['image_id'])) {
             set_post_thumbnail($listing_id, intval($params['image_id']));
+        }
+
+        if (isset($params['min_booking_value'])) {
+            update_post_meta($listing_id, '_min_booking_value', sanitize_text_field($params['min_booking_value']));
         }
 
         // FAQs
@@ -675,9 +764,11 @@ class ZipBiz_Vendor {
             update_post_meta($listing_id, '_faq', $faqs);
         }
 
-        // Taxonomies
+        // Taxonomies: set BOTH service_category and listing_category
         if (!empty($params['category'])) {
-            wp_set_object_terms($listing_id, sanitize_text_field($params['category']), 'listing_category', false);
+            $cat_name = sanitize_text_field($params['category']);
+            wp_set_object_terms($listing_id, $cat_name, 'service_category', false);
+            wp_set_object_terms($listing_id, $cat_name, 'listing_category', false);
         }
         if (!empty($params['region'])) {
             wp_set_object_terms($listing_id, sanitize_text_field($params['region']), 'region', false);
@@ -687,6 +778,7 @@ class ZipBiz_Vendor {
             wp_set_object_terms($listing_id, array_map('trim', $kw), 'listing_feature', false);
         }
     }
+
 
     /**
      * Get vendor wallet
@@ -935,5 +1027,275 @@ class ZipBiz_Vendor {
         }
 
         return ZipBiz_REST_API::error_response('NO_FILE', 'No file was provided in upload', 400);
+    }
+
+    /**
+     * Get available listing packages & vendor's active packages
+     */
+    public function get_packages($request) {
+        global $wpdb;
+        $user = wp_get_current_user();
+
+        // 1. Fetch packages from WooCommerce products
+        $package_products = array();
+        if (function_exists('wc_get_products') || class_exists('WooCommerce')) {
+            $posts = get_posts(array(
+                'post_type'        => 'product',
+                'posts_per_page'   => -1,
+                'post_status'      => 'publish',
+                'order'            => 'ASC',
+                'orderby'          => 'menu_order title',
+                'tax_query'        => array(
+                    array(
+                        'taxonomy' => 'product_type',
+                        'field'    => 'slug',
+                        'terms'    => array('listing_package', 'listing_package_subscription'),
+                    ),
+                ),
+            ));
+
+            if (!empty($posts)) {
+                foreach ($posts as $p) {
+                    $prod = function_exists('wc_get_product') ? wc_get_product($p->ID) : null;
+                    $price = $prod ? floatval($prod->get_price()) : floatval(get_post_meta($p->ID, '_regular_price', true));
+                    $limit = intval(get_post_meta($p->ID, '_listing_limit', true));
+                    $duration = intval(get_post_meta($p->ID, '_listing_duration', true));
+                    $is_featured = (get_post_meta($p->ID, '_listing_featured', true) === 'yes' || get_post_meta($p->ID, '_listing_featured', true) == 1);
+                    $has_booking = (get_post_meta($p->ID, '_package_option_booking', true) === 'yes' || get_post_meta($p->ID, '_package_option_booking', true) == 1);
+                    $is_free = ($price <= 0 || stripos($p->post_title, 'silver') !== false);
+
+                    $package_products[] = array(
+                        'id'               => $p->ID,
+                        'name'             => $p->post_title,
+                        'description'      => !empty($p->post_excerpt) ? wp_strip_all_tags($p->post_excerpt) : wp_strip_all_tags($p->post_content),
+                        'price'            => $price,
+                        'price_html'       => $prod ? $prod->get_price_html() : ('₹' . $price),
+                        'is_free'          => $is_free,
+                        'listing_limit'    => ($limit > 0 ? $limit : ($is_free ? 1 : 0)),
+                        'listing_duration' => $duration > 0 ? $duration : 365,
+                        'is_featured'      => $is_featured,
+                        'has_booking'      => $has_booking,
+                    );
+                }
+            }
+        }
+
+        // Fallback default 3 tiers if no WC listing_package products created yet
+        if (empty($package_products)) {
+            $package_products = array(
+                array(
+                    'id'               => 1001,
+                    'name'             => 'Silver Plan',
+                    'description'      => 'Free starter plan. 1 active listing with basic visibility.',
+                    'price'            => 0,
+                    'price_html'       => 'Free',
+                    'is_free'          => true,
+                    'listing_limit'    => 1,
+                    'listing_duration' => 365,
+                    'is_featured'      => false,
+                    'has_booking'      => true,
+                ),
+                array(
+                    'id'               => 1002,
+                    'name'             => 'Gold Plan',
+                    'description'      => 'Up to 5 listings with priority search placement and bookings.',
+                    'price'            => 499,
+                    'price_html'       => '₹499',
+                    'is_free'          => false,
+                    'listing_limit'    => 5,
+                    'listing_duration' => 365,
+                    'is_featured'      => true,
+                    'has_booking'      => true,
+                ),
+                array(
+                    'id'               => 1003,
+                    'name'             => 'Diamond Plan',
+                    'description'      => 'Unlimited listings, verified badge, top banner featured display.',
+                    'price'            => 999,
+                    'price_html'       => '₹999',
+                    'is_free'          => false,
+                    'listing_limit'    => 0,
+                    'listing_duration' => 365,
+                    'is_featured'      => true,
+                    'has_booking'      => true,
+                ),
+            );
+        }
+
+        // 2. Fetch vendor's active packages from wp_listeo_core_user_packages
+        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
+        $user_packages = array();
+        $can_add_listing = false;
+
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE user_id = %d ORDER BY id DESC",
+                $user->ID
+            ), ARRAY_A);
+
+            if (!empty($rows)) {
+                foreach ($rows as $row) {
+                    $pkg_id = intval($row['id']);
+                    $prod_id = intval($row['product_id']);
+                    $count = intval($row['package_count']);
+                    $limit = intval($row['package_limit']);
+                    $is_active = ($limit == 0 || $count < $limit);
+
+                    if ($is_active) {
+                        $can_add_listing = true;
+                    }
+
+                    $prod_title = get_the_title($prod_id);
+                    if (empty($prod_title)) {
+                        $prod_title = ($limit == 1) ? 'Silver Plan (Free)' : 'Vendor Package';
+                    }
+
+                    $user_packages[] = array(
+                        'id'               => $pkg_id,
+                        'product_id'       => $prod_id,
+                        'name'             => $prod_title,
+                        'package_count'    => $count,
+                        'package_limit'    => $limit,
+                        'remaining'        => $limit == 0 ? 'Unlimited' : max(0, $limit - $count),
+                        'package_duration' => intval($row['package_duration']),
+                        'is_active'        => $is_active,
+                    );
+                }
+            }
+        }
+
+        // If vendor has no packages, check their current listings count
+        // For Silver plan (free), they are allowed 1 listing if they have 0
+        $current_listings_count = count($this->get_vendor_listing_ids($user->ID));
+        if (empty($user_packages) && $current_listings_count == 0) {
+            $can_add_listing = true;
+        }
+
+        return ZipBiz_REST_API::success_response(array(
+            'packages'         => $package_products,
+            'user_packages'    => $user_packages,
+            'can_add_listing'  => $can_add_listing,
+            'current_listings' => $current_listings_count,
+        ));
+    }
+
+    /**
+     * Activate / Select Free Silver Package
+     */
+    public function select_free_package($request) {
+        global $wpdb;
+        $user = wp_get_current_user();
+        $params = $request->get_json_params();
+        $product_id = intval($params['product_id'] ?? 0);
+
+        $table_name = $wpdb->prefix . 'listeo_core_user_packages';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return ZipBiz_REST_API::error_response('TABLE_MISSING', 'User packages table not found', 500);
+        }
+
+        // Check if user already has an active package with slots remaining
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE user_id = %d AND (package_count < package_limit OR package_limit = 0) LIMIT 1",
+            $user->ID
+        ), ARRAY_A);
+
+        if ($existing) {
+            return ZipBiz_REST_API::success_response(array(
+                'package_id' => intval($existing['id']),
+                'message'    => 'You already have an active listing package.',
+            ));
+        }
+
+        // Check if user already used their free silver plan
+        $used_free = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table_name WHERE user_id = %d AND package_limit = 1",
+            $user->ID
+        ));
+        $current_listings = count($this->get_vendor_listing_ids($user->ID));
+
+        if ($used_free > 0 || $current_listings >= 1) {
+            return ZipBiz_REST_API::error_response(
+                'FREE_TIER_EXHAUSTED',
+                'The free Silver plan allows only 1 listing. Please upgrade to Gold or Diamond for more listings.',
+                403
+            );
+        }
+
+        // Grant Silver Plan
+        $inserted = $wpdb->insert(
+            $table_name,
+            array(
+                'user_id'          => $user->ID,
+                'product_id'       => $product_id ?: 1001,
+                'order_id'         => 0,
+                'package_count'    => 0,
+                'package_duration' => 365,
+                'package_limit'    => 1,
+                'package_featured' => 0,
+                'package_option_booking' => 1,
+                'package_option_reviews' => 1,
+                'package_option_gallery' => 1,
+            )
+        );
+
+        if (!$inserted) {
+            return ZipBiz_REST_API::error_response('INSERT_FAILED', 'Could not activate free package', 500);
+        }
+
+        return ZipBiz_REST_API::success_response(array(
+            'package_id' => $wpdb->insert_id,
+            'name'       => 'Silver Plan (Free)',
+            'limit'      => 1,
+        ), 'Silver plan activated successfully! You can now publish 1 listing.');
+    }
+
+    /**
+     * Get dynamic listing form fields configured on website
+     */
+    public function get_listing_form_fields($request) {
+        $type = sanitize_text_field($request->get_param('type') ?? 'service');
+        $fields = array();
+
+        if (function_exists('apply_filters')) {
+            $raw_fields = apply_filters('submit_listing_form_fields', array(), $type);
+            if (!empty($raw_fields) && is_array($raw_fields)) {
+                $fields = $raw_fields;
+            }
+        }
+
+        // Also fetch active taxonomies (service_category, region, listing_feature)
+        $categories = get_terms(array(
+            'taxonomy'   => 'service_category',
+            'hide_empty' => false,
+        ));
+        if (empty($categories) || is_wp_error($categories)) {
+            $categories = get_terms(array(
+                'taxonomy'   => 'listing_category',
+                'hide_empty' => false,
+            ));
+        }
+        $cat_list = array();
+        if (!is_wp_error($categories)) {
+            foreach ($categories as $cat) {
+                $cat_list[] = array('id' => $cat->term_id, 'name' => $cat->name, 'slug' => $cat->slug);
+            }
+        }
+
+        $regions = get_terms(array(
+            'taxonomy'   => 'region',
+            'hide_empty' => false,
+        ));
+        $region_list = array();
+        if (!is_wp_error($regions)) {
+            foreach ($regions as $reg) {
+                $region_list[] = array('id' => $reg->term_id, 'name' => $reg->name, 'slug' => $reg->slug);
+            }
+        }
+
+        return ZipBiz_REST_API::success_response(array(
+            'fields'     => $fields,
+            'categories' => $cat_list,
+            'regions'    => $region_list,
+        ));
     }
 }

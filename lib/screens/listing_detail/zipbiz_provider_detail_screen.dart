@@ -688,31 +688,34 @@ class _ZipBizProviderDetailScreenState
                     ),
                   const SizedBox(width: 8),
                   // Book Service Button
-                  ZipBizButton(
-                    text: 'Book Service',
-                    icon: Icons.calendar_month,
-                    onPressed: () {
-                      final selectedItems = _packages
-                          .where((pkg) => _selectedPackageNames.contains(pkg['name']))
-                          .toList();
+                  Expanded(
+                    child: ZipBizButton(
+                      text: 'Book Service',
+                      icon: Icons.calendar_month,
+                      height: 48,
+                      borderRadius: 12,
+                      onPressed: () {
+                        final selectedItems = _packages
+                            .where((pkg) => _selectedPackageNames.contains(pkg['name']))
+                            .toList();
 
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ZipBizBookingFlowScreen(
-                            product: p,
-                            selectedPackages: selectedItems,
-                            totalPrice: _totalSelectedPrice,
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ZipBizBookingFlowScreen(
+                              product: p,
+                              selectedPackages: selectedItems,
+                              totalPrice: _totalSelectedPrice,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    height: 44,
-                    borderRadius: 10,
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
+
           ),
         ],
       ),

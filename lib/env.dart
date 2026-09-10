@@ -1593,48 +1593,23 @@ Map<String, dynamic> environment = {
   /// config for the chat app
   /// config Whatapp: https://faq.whatsapp.com/en/iphone/23559013
   "smartChat": [
-    // {
-    //   "app": "zohoSalesiq",
-    //   "imageData":
-    //       "https://ps.w.org/zoho-salesiq/assets/icon-256x256.png?rev=2706918",
-    //   "description": "Zoho SalesIQ"
-    // },
     {
-      "app": "firebase",
-      "imageData":
-          "https://trello.com/1/cards/611a38c89ebde41ec7cf10e2/attachments/611a392cceb1b534aa92a83e/previews/611a392dceb1b534aa92a84d/download",
-      "description": "Realtime Chat",
+      "app": "tel:+917009218289",
+      "iconData": "phone",
+      "description": "Call (+91 70092 18289)"
     },
     {
-      "app": "chatGPT",
-      "imageData": "https://i.imgur.com/pp1qlPd.png",
-      "description": "Chat GPT"
-    },
-    {
-      "app": "https://wa.me/849908854",
+      "app": "https://wa.me/917009218289",
       "iconData": "whatsapp",
-      "description": "WhatsApp"
-    },
-    {"app": "tel:8499999999", "iconData": "phone", "description": "Call Us"},
-    {"app": "sms://8499999999", "iconData": "sms", "description": "Send SMS"},
-    {
-      "app": "https://tawk.to/chat/5d830419c22bdd393bb69888/default",
-      "iconData": "whatsapp",
-      "description": "Tawk Chat"
+      "description": "WhatsApp (+91 70092 18289)"
     },
     {
-      "app": "http://m.me/inspireui",
-      "iconData": "facebookMessenger",
-      "description": "Facebook Chat"
-    },
-    {
-      "app":
-          "https://twitter.com/messages/compose?recipient_id=821597032011931648",
-      "imageData":
-          "https://trello.com/1/cards/611a38c89ebde41ec7cf10e2/attachments/611a38d026894f10dc1091c8/previews/611a38d126894f10dc1091d6/download",
-      "description": "Twitter Chat"
+      "app": "mailto:support@zipbiz.in",
+      "iconData": "email",
+      "description": "Email (support@zipbiz.in)"
     }
   ],
+
 
   /// ➡️ lib/common/vendor.dart
   "vendorConfig": {

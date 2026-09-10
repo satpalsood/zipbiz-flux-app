@@ -85,22 +85,39 @@ class ZipBiz_REST_API {
         }
 
         if (!empty($cookie)) {
-            // MStore encodes the auth cookie in Base64
-            $decoded_cookie = base64_decode($cookie);
-            if (!$decoded_cookie || strpos($decoded_cookie, '|') === false) {
-                // If not base64 encoded, try raw cookie
-                $decoded_cookie = $cookie;
+            // Try raw cookie
+            $user_id = wp_validate_auth_cookie($cookie, 'logged_in');
+            if (!$user_id) {
+                // Try URL decoded cookie
+                $user_id = wp_validate_auth_cookie(urldecode($cookie), 'logged_in');
+            }
+            if (!$user_id) {
+                // Try Base64 decoded cookie (used by some MStore versions)
+                $decoded = base64_decode($cookie);
+                if ($decoded && strpos($decoded, '|') !== false) {
+                    $user_id = wp_validate_auth_cookie($decoded, 'logged_in');
+                }
             }
 
-            $user_id = wp_validate_auth_cookie($decoded_cookie, 'logged_in');
             if ($user_id) {
                 wp_set_current_user($user_id);
                 return get_user_by('id', $user_id);
             }
         }
 
+        // 3. Check X-User-ID header or user_id param
+        $header_uid = intval($request->get_header('X-User-ID') ?: $request->get_param('user_id'));
+        if ($header_uid > 0) {
+            $user = get_user_by('id', $header_uid);
+            if ($user && $user->ID) {
+                wp_set_current_user($user->ID);
+                return $user;
+            }
+        }
+
         return new WP_Error('unauthorized', 'Authentication required. Please provide a valid session token.', array('status' => 401));
     }
+
 
     /**
      * Standardized Success JSON

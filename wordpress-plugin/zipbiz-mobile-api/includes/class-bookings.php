@@ -286,29 +286,49 @@ class ZipBiz_Bookings {
             return ZipBiz_REST_API::error_response('INVALID_LISTING', 'Invalid listing ID', 400);
         }
 
-        // Determine slot duration from request or listing meta (default 2 hours)
-        $slot_interval = intval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 2);
-        if ($slot_interval === 1) {
-            $standard_slots = array(
-                '09:00 AM - 10:00 AM',
-                '10:00 AM - 11:00 AM',
-                '11:00 AM - 12:00 PM',
-                '12:00 PM - 01:00 PM',
-                '02:00 PM - 03:00 PM',
-                '03:00 PM - 04:00 PM',
-                '04:00 PM - 05:00 PM',
-                '05:00 PM - 06:00 PM',
-                '06:00 PM - 07:00 PM',
-                '07:00 PM - 08:00 PM',
-            );
+        // Check if listing has custom configured slots in Listeo
+        $day_key = strtolower(date('l', strtotime($date)));
+        $un_slots = get_post_meta($listing_id, '_slots', true);
+        if (is_string($un_slots)) {
+            $decoded_slots = json_decode($un_slots, true);
         } else {
-            $standard_slots = array(
-                '09:00 AM - 11:00 AM',
-                '11:00 AM - 01:00 PM',
-                '02:00 PM - 04:00 PM',
-                '04:00 PM - 06:00 PM',
-                '06:00 PM - 08:00 PM',
-            );
+            $decoded_slots = $un_slots;
+        }
+
+        $standard_slots = array();
+        if (is_array($decoded_slots) && !empty($decoded_slots[$day_key])) {
+            foreach ($decoded_slots[$day_key] as $slot_item) {
+                $parts = explode('|', $slot_item);
+                if (!empty($parts[0])) {
+                    $standard_slots[] = trim($parts[0]);
+                }
+            }
+        }
+
+        $slot_interval = intval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 2);
+        if (empty($standard_slots)) {
+            if ($slot_interval === 1) {
+                $standard_slots = array(
+                    '09:00 AM - 10:00 AM',
+                    '10:00 AM - 11:00 AM',
+                    '11:00 AM - 12:00 PM',
+                    '12:00 PM - 01:00 PM',
+                    '02:00 PM - 03:00 PM',
+                    '03:00 PM - 04:00 PM',
+                    '04:00 PM - 05:00 PM',
+                    '05:00 PM - 06:00 PM',
+                    '06:00 PM - 07:00 PM',
+                    '07:00 PM - 08:00 PM',
+                );
+            } else {
+                $standard_slots = array(
+                    '09:00 AM - 11:00 AM',
+                    '11:00 AM - 01:00 PM',
+                    '02:00 PM - 04:00 PM',
+                    '04:00 PM - 06:00 PM',
+                    '06:00 PM - 08:00 PM',
+                );
+            }
         }
 
         $max_slots = intval(get_post_meta($listing_id, '_slot_limit', true) ?: 3);
@@ -365,6 +385,7 @@ class ZipBiz_Bookings {
         ));
     }
 
+
     /**
      * Cancel a booking
      */
@@ -410,8 +431,13 @@ class ZipBiz_Bookings {
         global $wpdb;
         $user_id = intval($request->get_param('user_id'));
         if (!$user_id) {
-            $user = wp_get_current_user();
-            $user_id = ($user && $user->ID) ? $user->ID : 0;
+            $user_id = intval($request->get_header('X-User-ID'));
+        }
+        if (!$user_id) {
+            $user = ZipBiz_REST_API::authenticate_user($request);
+            if (!is_wp_error($user) && $user && $user->ID) {
+                $user_id = $user->ID;
+            }
         }
 
         if (!$user_id) {
@@ -442,7 +468,16 @@ class ZipBiz_Bookings {
             $rows = $wpdb->get_results("SELECT * FROM $table_name $where ORDER BY id DESC LIMIT $offset, $per_page", ARRAY_A);
             foreach ($rows as $r) {
                 $listing = get_post($r['listing_id']);
-                $comment_data = json_decode($r['comment'], true) ?: array();
+                $raw_comment = $r['comment'] ?? '';
+                $comment_data = is_string($raw_comment) ? json_decode($raw_comment, true) : array();
+                if (!is_array($comment_data)) {
+                    $comment_data = array();
+                }
+                $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: get_post_meta($listing->ID, '_featured_image_url', true) ?: '') : '';
+                $comment_str = (!empty($raw_comment) && is_string($raw_comment) && strpos($raw_comment, '{') !== false)
+                    ? $raw_comment
+                    : json_encode($comment_data ?: array('adults' => '1', 'service' => array()));
+
                 $items[] = array_merge($comment_data, array(
                     'id'             => intval($r['id']),
                     'booking_id'     => intval($r['id']),
@@ -456,7 +491,8 @@ class ZipBiz_Bookings {
                     'listing_id'     => intval($r['listing_id']),
                     'title'          => $listing ? $listing->post_title : 'Home Service',
                     'listing_title'  => $listing ? $listing->post_title : 'Home Service',
-                    'featured_image' => $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: '') : '',
+                    'featured_image' => $feat_img,
+                    'comment'        => $comment_str,
                 ));
             }
         } else {
@@ -473,6 +509,9 @@ class ZipBiz_Bookings {
                 $b_data = get_post_meta($p->ID, '_booking_data', true) ?: array();
                 $lid = get_post_meta($p->ID, '_listing_id', true);
                 $listing = get_post($lid);
+                $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: get_post_meta($listing->ID, '_featured_image_url', true) ?: '') : '';
+                $comment_str = json_encode($b_data ?: array('adults' => '1', 'service' => array()));
+
                 $items[] = array_merge($b_data, array(
                     'id'             => $p->ID,
                     'booking_id'     => $p->ID,
@@ -481,7 +520,8 @@ class ZipBiz_Bookings {
                     'created'        => $p->post_date,
                     'created_date'   => date('d M Y, h:i A', strtotime($p->post_date)),
                     'title'          => $listing ? $listing->post_title : $p->post_title,
-                    'featured_image' => $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: '') : '',
+                    'featured_image' => $feat_img,
+                    'comment'        => $comment_str,
                 ));
             }
         }
@@ -492,6 +532,7 @@ class ZipBiz_Bookings {
 
         return ZipBiz_REST_API::success_response($items);
     }
+
 
     /**
      * Check if customer has an approved/confirmed booking with vendor or for a listing

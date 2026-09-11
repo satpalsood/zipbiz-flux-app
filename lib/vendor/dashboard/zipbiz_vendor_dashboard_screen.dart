@@ -1010,6 +1010,18 @@ class _ZipBizVendorDashboardScreenState
     );
   }
 
+  String _maskAddress(String fullAddress, bool isAccepted) {
+    if (fullAddress.trim().isEmpty) return 'Address not provided';
+    if (isAccepted) return fullAddress;
+
+    final parts = fullAddress.split(',');
+    if (parts.length > 1) {
+      const maskedFirst = '**** (Flat/House # hidden until accepted)';
+      return [maskedFirst, ...parts.sublist(1).map((s) => s.trim())].join(', ');
+    }
+    return '**** (Flat/House # hidden until accepted), $fullAddress';
+  }
+
   Widget _buildJobRequestCard(dynamic job) {
     final rawId = job['booking_id'] ?? job['id'] ?? 0;
     final id = int.tryParse(rawId.toString()) ?? 0;

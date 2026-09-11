@@ -13,17 +13,23 @@ class ZipBizCartItem {
   final String? providerName;
   final int? listingId;
   final Product? product;
+  final String? businessTitle;
+  final String? businessSlug;
 
   ZipBizCartItem({
-    required this.id,
-    required this.title,
+    String? id,
+    String? title,
+    String? serviceName,
     required this.price,
     this.duration = '60 mins',
     this.category,
     this.providerName,
     this.listingId,
     this.product,
-  });
+    this.businessTitle,
+    this.businessSlug,
+  })  : id = id ?? title ?? serviceName ?? 'item_${DateTime.now().millisecondsSinceEpoch}',
+        title = title ?? serviceName ?? 'Service';
 }
 
 class ZipBizCartManager {
@@ -31,6 +37,8 @@ class ZipBizCartManager {
   static final List<ZipBizCartItem> _items = [];
 
   static List<ZipBizCartItem> get items => List.unmodifiable(_items);
+
+  static void addToCart(ZipBizCartItem item, BuildContext context) => addItem(item, context);
 
   static void addItem(ZipBizCartItem item, BuildContext context) {
     // Avoid duplicate service additions of same item

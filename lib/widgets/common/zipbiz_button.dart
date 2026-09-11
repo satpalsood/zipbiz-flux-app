@@ -14,6 +14,7 @@ class ZipBizButton extends StatelessWidget {
   final double height;
   final double borderRadius;
   final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
 
   const ZipBizButton({
     super.key,
@@ -26,6 +27,7 @@ class ZipBizButton extends StatelessWidget {
     this.height = 48,
     this.borderRadius = 12,
     this.padding,
+    this.backgroundColor,
   });
 
   @override
@@ -72,7 +74,7 @@ class ZipBizButton extends StatelessWidget {
     }
 
     final isSecondary = (type == ZipBizButtonType.secondary);
-    final bgColor = isSecondary ? ZipBizColors.secondary : ZipBizColors.primaryContainer;
+    final bgColor = backgroundColor ?? (isSecondary ? ZipBizColors.secondary : ZipBizColors.primaryContainer);
     final fgColor = isSecondary ? ZipBizColors.onSecondary : ZipBizColors.onPrimary;
 
     return ConstrainedBox(

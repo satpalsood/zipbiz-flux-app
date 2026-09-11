@@ -1139,6 +1139,8 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                                         final numPrice = double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
                                         ZipBizCartManager.addToCart(
                                           ZipBizCartItem(
+                                            id: title,
+                                            title: title,
                                             serviceName: title,
                                             price: numPrice,
                                             businessTitle: type == 'maid' ? 'Zipbiz Maid Service' : 'Zipbiz Cleaning Service',

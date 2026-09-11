@@ -6,9 +6,10 @@ import '../../core/theme/zipbiz_colors.dart';
 import '../../core/theme/zipbiz_typography.dart';
 import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_button.dart';
-import '../../widgets/common/flux_image.dart';
+import 'package:flux_ui/flux_ui.dart';
+import '../../common/constants.dart';
+import '../../menu/maintab_delegate.dart';
 import '../../routes/flux_navigate.dart';
-import '../../routes/route.dart';
 import '../../services/index.dart';
 
 class ZipBizBookmarksScreen extends StatefulWidget {

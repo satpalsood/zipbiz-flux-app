@@ -71,13 +71,10 @@ class _ZipBizEditProfileScreenState extends State<ZipBizEditProfileScreen> {
       _lastNameController.text = user.lastName ?? '';
       _emailController.text = user.email ?? '';
       _phoneController.text = user.phoneNumber ?? '';
-    }
 
-    final token = user?.jwtToken ?? user?.cookie ?? '';
-    if (token.isNotEmpty) {
       try {
-        final profile = await _apiService.getUserProfile(token);
-        if (profile != null && mounted) {
+        final profile = await _apiService.getUserProfile(user);
+        if (mounted && profile.isNotEmpty) {
           setState(() {
             if (profile['username'] != null && profile['username'].toString().isNotEmpty) {
               _username = profile['username'].toString();
@@ -151,64 +148,62 @@ class _ZipBizEditProfileScreenState extends State<ZipBizEditProfileScreen> {
 
     final userModel = Provider.of<UserModel>(context, listen: false);
     final user = userModel.user;
-    final token = user?.jwtToken ?? user?.cookie ?? '';
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to update your profile'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() => _isSaving = false);
+      return;
+    }
 
     try {
-      final res = await _apiService.updateUserProfile(
-        token: token,
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        currentPassword: _showPasswordSection && _newPasswordController.text.isNotEmpty
-            ? _currentPasswordController.text
-            : null,
-        newPassword: _showPasswordSection && _newPasswordController.text.isNotEmpty
-            ? _newPasswordController.text
-            : null,
+      final updateData = <String, dynamic>{
+        'first_name': _firstNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+      };
+      if (_showPasswordSection && _newPasswordController.text.isNotEmpty) {
+        updateData['current_password'] = _currentPasswordController.text;
+        updateData['new_password'] = _newPasswordController.text;
+      }
+
+      await _apiService.updateUserProfile(
+        user: user,
+        data: updateData,
       );
 
-      if (res['success'] == true) {
-        // Update local user model
-        if (user != null) {
-          user.firstName = _firstNameController.text.trim();
-          user.lastName = _lastNameController.text.trim();
-          user.name = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim();
-          user.email = _emailController.text.trim();
-          user.phoneNumber = _phoneController.text.trim();
-          userModel.updateUser(user);
-        }
+      // Update local user model
+      user.firstName = _firstNameController.text.trim();
+      user.lastName = _lastNameController.text.trim();
+      user.name = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim();
+      user.email = _emailController.text.trim();
+      user.phoneNumber = _phoneController.text.trim();
+      userModel.updateUser(user);
 
-        if (mounted) {
-          _currentPasswordController.clear();
-          _newPasswordController.clear();
-          _confirmPasswordController.clear();
-          setState(() {
-            _showPasswordSection = false;
-          });
+      if (mounted) {
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+        setState(() {
+          _showPasswordSection = false;
+        });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(res['message']?.toString() ?? 'Profile updated successfully!'),
-              backgroundColor: ZipBizColors.statusOpen,
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(res['message']?.toString() ?? 'Failed to update profile'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully!'),
+            backgroundColor: ZipBizColors.statusOpen,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating profile: $e'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );

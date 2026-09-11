@@ -11,8 +11,15 @@ import '../../routes/flux_navigate.dart';
 import '../../services/index.dart';
 import '../../widgets/common/zipbiz_header.dart';
 
+class ZipBizBookingAvailability {
+  static final ValueNotifier<bool> isAcceptingNotifier = ValueNotifier<bool>(true);
+}
+
 class ZipBizServicesDirectoryScreen extends StatefulWidget {
   final String? initialCategory;
+
+  static final ValueNotifier<String?> selectedCategoryNotifier =
+      ValueNotifier<String?>(null);
 
   const ZipBizServicesDirectoryScreen({super.key, this.initialCategory});
 
@@ -94,8 +101,43 @@ class _ZipBizServicesDirectoryScreenState
   @override
   void initState() {
     super.initState();
-    _selectedCategory = widget.initialCategory;
+    ZipBizServicesDirectoryScreen.selectedCategoryNotifier
+        .addListener(_onCategoryNotifierChanged);
+    ZipBizBookingAvailability.isAcceptingNotifier
+        .addListener(_onBookingAvailabilityChanged);
+    if (ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value != null) {
+      _selectedCategory =
+          ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value;
+    } else {
+      _selectedCategory = widget.initialCategory;
+    }
     _loadServices();
+  }
+
+  @override
+  void dispose() {
+    ZipBizServicesDirectoryScreen.selectedCategoryNotifier
+        .removeListener(_onCategoryNotifierChanged);
+    ZipBizBookingAvailability.isAcceptingNotifier
+        .removeListener(_onBookingAvailabilityChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onCategoryNotifierChanged() {
+    if (mounted) {
+      setState(() {
+        _selectedCategory =
+            ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value;
+      });
+      _loadServices();
+    }
+  }
+
+  void _onBookingAvailabilityChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadServices() async {
@@ -150,45 +192,81 @@ class _ZipBizServicesDirectoryScreenState
   }
 
   List<Product> get _filteredServices {
-    if (_selectedCategory == null || _selectedCategory!.isEmpty) {
-      return _allServices;
+    var list = _allServices;
+
+    // 1. Strict Category Matching
+    if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+      final cat = _selectedCategory!.trim().toLowerCase();
+
+      list = list.where((p) {
+        final pCat = (p.categoryName ?? '').toLowerCase().trim();
+        final pType = (p.type ?? '').toLowerCase().trim();
+        final name = (p.name ?? '').toLowerCase();
+
+        if (cat == 'maid') {
+          // Strictly maid services, exclude deep cleaning
+          return (pCat.contains('maid') || pType.contains('maid') || name.contains('maid')) &&
+                 !name.contains('deep clean') && !pCat.contains('cleaner');
+        } else if (cat == 'cleaner') {
+          // Strictly cleaning services, exclude maid
+          return (pCat.contains('clean') || pType.contains('clean') || name.contains('clean')) &&
+                 !name.contains('maid') && !pCat.contains('maid');
+        } else if (cat == 'electrician') {
+          return pCat.contains('electr') || pType.contains('electr') || name.contains('electr');
+        } else if (cat == 'plumber') {
+          return pCat.contains('plumb') || pType.contains('plumb') || name.contains('plumb');
+        } else if (cat.contains('salon') || cat.contains('beauty')) {
+          return pCat.contains('salon') || pCat.contains('beauty') || name.contains('salon') || name.contains('beauty') || name.contains('parlour');
+        } else if (cat == 'appliance') {
+          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('ac repair') || name.contains('refrigerator') || name.contains('washing machine');
+        } else if (cat == 'carpenter') {
+          return pCat.contains('carpent') || pType.contains('carpent') || name.contains('carpent');
+        } else if (cat.contains('care')) {
+          return pCat.contains('care') || pType.contains('care') || name.contains('caregiver') || name.contains('elderly');
+        } else {
+          return pCat == cat || pType == cat || name.contains(cat);
+        }
+      }).toList();
     }
 
-    final catLower = _selectedCategory!.trim().toLowerCase();
-    List<String> keywords = [];
+    // 2. Strict Location Filtering
+    final activeLoc = _selectedRegion.toLowerCase().trim();
+    final searchTxt = _searchController.text.toLowerCase().trim();
+    final targetLocStr = searchTxt.contains('mohali') ? 'mohali' :
+                         searchTxt.contains('kharar') ? 'kharar' :
+                         searchTxt.contains('zirakpur') ? 'zirakpur' :
+                         searchTxt.contains('panchkula') ? 'panchkula' :
+                         searchTxt.contains('chandigarh') ? 'chandigarh' :
+                         activeLoc;
 
-    if (catLower.contains('clean')) {
-      keywords = ['clean', 'cleaning', 'cleaner', 'deep clean', 'maid', 'housekeeping', 'sanitiz', 'wash'];
-    } else if (catLower.contains('care')) {
-      keywords = ['care', 'caregiver', 'care giver', 'elderly', 'nurse', 'patient', 'baby', 'attendant', 'parent'];
-    } else if (catLower.contains('salon') || catLower.contains('beauty')) {
-      // Both men and women salon services
-      keywords = ['salon', 'beauty', 'hair', 'grooming', 'men', 'women', 'shave', 'facial', 'barber', 'waxing', 'makeup', 'parlour', 'pedicure', 'manicure'];
-    } else if (catLower.contains('electr')) {
-      keywords = ['electr', 'wiring', 'appliance', 'switch', 'light', 'circuit', 'fan', 'inverter'];
-    } else if (catLower.contains('plumb')) {
-      keywords = ['plumb', 'pipe', 'leak', 'tap', 'drain', 'water', 'fitting', 'sanitary'];
-    } else if (catLower.contains('appliance')) {
-      keywords = ['appliance', 'ac', 'refrigerator', 'fridge', 'washing machine', 'microwave', 'repair'];
-    } else if (catLower.contains('carpent')) {
-      keywords = ['carpent', 'wood', 'furniture', 'door', 'lock', 'cupboard'];
-    } else if (catLower.contains('maid')) {
-      keywords = ['maid', 'cook', 'househelp', 'cleaning', 'domestic'];
-    } else {
-      keywords = [catLower];
+    if (!targetLocStr.contains('chandigarh, mohali, kharar') && !targetLocStr.contains('all')) {
+      const cities = ['mohali', 'kharar', 'zirakpur', 'panchkula', 'chandigarh'];
+      String? filterCity;
+      for (final c in cities) {
+        if (targetLocStr.contains(c)) {
+          filterCity = c;
+          break;
+        }
+      }
+
+      if (filterCity != null) {
+        list = list.where((p) {
+          final loc = (p.location ?? '').toLowerCase();
+          final tagLine = (p.tagLine ?? '').toLowerCase();
+          String metaLoc = '';
+          for (final m in p.metaData) {
+            final k = (m['key'] ?? '').toString().toLowerCase();
+            if (k.contains('address') || k.contains('area') || k.contains('region') || k.contains('location') || k.contains('city')) {
+              metaLoc += ' ${(m['value'] ?? '').toString().toLowerCase()}';
+            }
+          }
+          final combined = '$loc $tagLine $metaLoc';
+          return combined.contains(filterCity!);
+        }).toList();
+      }
     }
 
-    final filtered = _allServices.where((p) {
-      final name = (p.name ?? '').toLowerCase();
-      final cat = (p.categoryName ?? '').toLowerCase();
-      final desc = (p.shortDescription ?? '').toLowerCase();
-      final fullDesc = (p.description ?? '').toLowerCase();
-      final combined = '$name $cat $desc $fullDesc';
-
-      return keywords.any((k) => combined.contains(k));
-    }).toList();
-
-    return filtered;
+    return list;
   }
 
   void _showRegionPicker() {
@@ -376,24 +454,35 @@ class _ZipBizServicesDirectoryScreenState
                           const SizedBox(width: 8),
                           SizedBox(
                             height: 42,
-                            child: ElevatedButton.icon(
+                            child: ElevatedButton(
                               onPressed: _loadServices,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFF6B00),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
-                                alignment: Alignment.center,
                                 padding: const EdgeInsets.symmetric(horizontal: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              icon: const Icon(Icons.search, size: 16),
-                              label: const Text(
-                                'Search',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 12, fontWeight: FontWeight.bold, height: 1.1),
+                              child: const Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.search, size: 16),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Search',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -462,6 +551,8 @@ class _ZipBizServicesDirectoryScreenState
                             setState(() {
                               _selectedCategory =
                                   isSelected ? null : cat['name'];
+                              ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value =
+                                  _selectedCategory;
                             });
                             _loadServices();
                           },
@@ -542,7 +633,7 @@ class _ZipBizServicesDirectoryScreenState
                     Text(
                       _selectedCategory != null
                           ? '$_selectedCategory Services'
-                          : 'All Available Listings',
+                          : 'All Available Businesses',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -643,6 +734,18 @@ class _ZipBizServicesDirectoryScreenState
   // ZOMATO / SWIGGY STYLE LIST CARD
   // =========================================================
   Widget _buildZomatoStyleListCard(Product product) {
+    bool isAccepting = ZipBizBookingAvailability.isAcceptingNotifier.value;
+    for (final m in product.metaData) {
+      final k = (m['key'] ?? '').toString();
+      final v = m['value'];
+      if (k == '_booking_status' || k == 'booking_status') {
+        if (v == false || v == 'off' || v == '0' || v == 0) isAccepting = false;
+      }
+      if (k == '_is_offline' || k == 'is_offline' || k == '_pause_bookings') {
+        if (v == true || v == 'on' || v == '1' || v == 1) isAccepting = false;
+      }
+    }
+
     final priceStr = (product.price != null && product.price!.isNotEmpty)
         ? '₹${product.price}'
         : (product.regularPrice != null && product.regularPrice!.isNotEmpty)
@@ -657,9 +760,9 @@ class _ZipBizServicesDirectoryScreenState
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isAccepting ? Colors.white : const Color(0xFFF9FAFB),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE4E2E1)),
+        border: Border.all(color: isAccepting ? const Color(0xFFE4E2E1) : Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -807,6 +910,25 @@ class _ZipBizServicesDirectoryScreenState
                           ),
                         ],
                       ),
+                      if (!isAccepting) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Text(
+                            'Currently not accepting orders',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.red.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
 
                       // Price & Book Button Row
@@ -827,24 +949,28 @@ class _ZipBizServicesDirectoryScreenState
                               ),
                               Text(
                                 priceStr,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFFFF6B00),
+                                  color: isAccepting ? const Color(0xFFFF6B00) : Colors.grey,
                                 ),
                               ),
                             ],
                           ),
                           ElevatedButton(
-                            onPressed: () {
-                              FluxNavigate.pushNamed(
-                                RouteList.productDetail,
-                                arguments: product,
-                                context: context,
-                              );
-                            },
+                            onPressed: isAccepting
+                                ? () {
+                                    FluxNavigate.pushNamed(
+                                      RouteList.productDetail,
+                                      arguments: product,
+                                      context: context,
+                                    );
+                                  }
+                                : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF6B00),
+                              backgroundColor: isAccepting
+                                  ? const Color(0xFFFF6B00)
+                                  : Colors.grey.shade400,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               alignment: Alignment.center,
@@ -856,23 +982,15 @@ class _ZipBizServicesDirectoryScreenState
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: const [
-                                Text(
-                                  'Book',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.1,
-                                  ),
+                            child: const Center(
+                              child: Text(
+                                'Book',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                SizedBox(width: 4),
-                                Icon(Icons.arrow_forward, size: 13),
-                              ],
+                              ),
                             ),
                           ),
                         ],

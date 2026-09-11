@@ -419,8 +419,17 @@ class ZipBiz_Vendor {
 
     public function start_booking($request) {
         $user = wp_get_current_user();
+        $booking_id = intval($request['id']);
+        $otp = sanitize_text_field($request->get_param('otp') ?: '');
+        if (!empty($otp)) {
+            $expected_start_otp = strval((($booking_id * 31 + 1729) % 9000) + 1000);
+            if ($otp !== $expected_start_otp) {
+                return ZipBiz_REST_API::error_response('INVALID_OTP', 'Invalid Start Service OTP. Please ask customer for correct 4-digit OTP.', 400);
+            }
+        }
+
         return $this->update_booking_status(
-            intval($request['id']),
+            $booking_id,
             $user->ID,
             'in_progress',
             'Service Started! ⏱️',
@@ -430,8 +439,17 @@ class ZipBiz_Vendor {
 
     public function complete_booking($request) {
         $user = wp_get_current_user();
+        $booking_id = intval($request['id']);
+        $otp = sanitize_text_field($request->get_param('otp') ?: '');
+        if (!empty($otp)) {
+            $expected_finish_otp = strval((($booking_id * 47 + 2468) % 9000) + 1000);
+            if ($otp !== $expected_finish_otp) {
+                return ZipBiz_REST_API::error_response('INVALID_OTP', 'Invalid Finish Service OTP. Please ask customer for correct 4-digit OTP.', 400);
+            }
+        }
+
         return $this->update_booking_status(
-            intval($request['id']),
+            $booking_id,
             $user->ID,
             'completed',
             'Service Completed! ⭐',
@@ -443,28 +461,35 @@ class ZipBiz_Vendor {
         global $wpdb;
         $user = wp_get_current_user();
         $listing_ids = $this->get_vendor_listing_ids($user->ID);
+        $commission_rate = floatval(get_user_meta($user->ID, 'listeo_commission_rate', true) ?: get_option('listeo_commission_rate', '20'));
+        if ($commission_rate <= 0) {
+            $commission_rate = 20.0;
+        }
+
         if (empty($listing_ids)) {
             return ZipBiz_REST_API::success_response(array(
-                'gross'      => 0,
-                'commission' => 0,
-                'refunds'    => 0,
-                'net'        => 0,
-                'history'    => array(),
+                'gross'           => 0,
+                'commission_rate' => $commission_rate,
+                'commission'      => 0,
+                'refunds'         => 0,
+                'net'             => 0,
+                'history'         => array(),
             ));
         }
 
         $ids_placeholder = implode(',', array_map('intval', $listing_ids));
         $table_name = ZipBiz_Bookings::get_bookings_table();
         $gross = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status IN ('completed', 'confirmed')"));
-        $commission = round($gross * 0.10, 2);
+        $commission = round($gross * ($commission_rate / 100.0), 2);
         $refunds = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status = 'refunded'"));
         $net = round($gross - $commission - $refunds, 2);
 
         return ZipBiz_REST_API::success_response(array(
-            'gross'      => $gross,
-            'commission' => $commission,
-            'refunds'    => $refunds,
-            'net'        => $net,
+            'gross'           => $gross,
+            'commission_rate' => $commission_rate,
+            'commission'      => $commission,
+            'refunds'         => $refunds,
+            'net'             => $net,
         ));
     }
 
@@ -899,6 +924,11 @@ class ZipBiz_Vendor {
         $net = 0;
         $refunds = 0;
 
+        $commission_rate = floatval(get_user_meta($user->ID, 'listeo_commission_rate', true) ?: get_option('listeo_commission_rate', '20'));
+        if ($commission_rate <= 0) {
+            $commission_rate = 20.0;
+        }
+
         if (!empty($listing_ids)) {
             $ids_placeholder = implode(',', array_map('intval', $listing_ids));
             $table_name = ZipBiz_Bookings::get_bookings_table();
@@ -906,7 +936,7 @@ class ZipBiz_Vendor {
                 $gross = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status IN ('completed', 'confirmed')"));
                 $refunds = floatval($wpdb->get_var("SELECT SUM(price) FROM $table_name WHERE listing_id IN ($ids_placeholder) AND status = 'refunded'"));
             }
-            $commission = round($gross * 0.10, 2);
+            $commission = round($gross * ($commission_rate / 100.0), 2);
             $net = round($gross - $commission - $refunds, 2);
         }
 
@@ -920,13 +950,15 @@ class ZipBiz_Vendor {
         $available_balance = max(0, $net - $withdrawn_total);
 
         return ZipBiz_REST_API::success_response(array(
-            'gross_earnings'    => $gross,
-            'commission'        => $commission,
-            'refunds'           => $refunds,
-            'net_earnings'      => $net,
-            'withdrawn_total'   => $withdrawn_total,
-            'available_balance' => $available_balance,
-            'withdrawals'       => array_reverse($withdrawals),
+            'gross_earnings'      => $gross,
+            'commission_rate'     => $commission_rate,
+            'commission'          => $commission,
+            'platform_commission' => $commission,
+            'refunds'             => $refunds,
+            'net_earnings'        => $net,
+            'withdrawn_total'     => $withdrawn_total,
+            'available_balance'   => $available_balance,
+            'withdrawals'         => array_reverse($withdrawals),
         ));
     }
 
@@ -1026,6 +1058,46 @@ class ZipBiz_Vendor {
     public function get_coupons($request) {
         $user = wp_get_current_user();
         $coupons = get_user_meta($user->ID, '_zipbiz_vendor_coupons', true) ?: array();
+
+        // Also retrieve coupons created via WooCommerce shop_coupon posts for this vendor
+        $args = array(
+            'post_type'      => 'shop_coupon',
+            'posts_per_page' => 100,
+            'post_status'    => 'publish',
+            'author'         => $user->ID,
+        );
+        $wc_posts = get_posts($args);
+        $existing_codes = array();
+        foreach ($coupons as $c) {
+            if (!empty($c['code'])) {
+                $existing_codes[strtoupper(trim($c['code']))] = true;
+            }
+        }
+
+        if (!empty($wc_posts)) {
+            foreach ($wc_posts as $post) {
+                $code = strtoupper(trim($post->post_title));
+                if (!isset($existing_codes[$code])) {
+                    $c_type = get_post_meta($post->ID, 'discount_type', true) ?: 'percent';
+                    $c_amount = floatval(get_post_meta($post->ID, 'coupon_amount', true) ?: 0);
+                    $c_expiry = get_post_meta($post->ID, 'expiry_date', true) ?: '';
+                    $coupons[] = array(
+                        'id'            => $post->ID,
+                        'code'          => $code,
+                        'discount'      => $c_amount,
+                        'amount'        => $c_amount,
+                        'type'          => $c_type,
+                        'discount_type' => $c_type,
+                        'description'   => $post->post_content,
+                        'expiry'        => $c_expiry,
+                        'status'        => 'active',
+                        'created_at'    => $post->post_date,
+                    );
+                    $existing_codes[$code] = true;
+                }
+            }
+        }
+
         return ZipBiz_REST_API::success_response($coupons);
     }
 
@@ -1034,26 +1106,85 @@ class ZipBiz_Vendor {
      */
     public function create_coupon($request) {
         $user = wp_get_current_user();
-        $params = $request->get_json_params();
+        $params = $request->get_json_params() ?: array();
 
-        $code = strtoupper(sanitize_text_field($params['code'] ?? ''));
-        $discount = floatval($params['discount'] ?? 0);
+        $code = strtoupper(trim(sanitize_text_field($params['code'] ?? '')));
+        $discount = floatval($params['amount'] ?? ($params['discount'] ?? 0));
+        $raw_type = sanitize_text_field($params['discount_type'] ?? ($params['type'] ?? 'percent'));
+        $type = ($raw_type === 'fixed_cart' || $raw_type === 'fixed') ? 'fixed_cart' : 'percent';
         $description = sanitize_text_field($params['description'] ?? '');
+        $expiry = sanitize_text_field($params['expiry'] ?? date('Y-m-d', strtotime('+30 days')));
 
         if (empty($code) || $discount <= 0) {
-            return ZipBiz_REST_API::error_response('INVALID_COUPON', 'Coupon code and discount are required', 400);
+            return ZipBiz_REST_API::error_response('INVALID_COUPON', 'Coupon code and discount amount are required', 400);
+        }
+
+        $coupon_id = null;
+
+        // Try creating via WooCommerce WC_Coupon class if available
+        if (class_exists('WC_Coupon')) {
+            try {
+                $wc_coupon = new WC_Coupon();
+                $wc_coupon->set_code($code);
+                $wc_coupon->set_description($description);
+                $wc_coupon->set_discount_type($type);
+                $wc_coupon->set_amount($discount);
+                if (!empty($expiry)) {
+                    $wc_coupon->set_date_expires($expiry);
+                }
+                $wc_coupon->set_individual_use(false);
+                $wc_coupon->save();
+                $coupon_id = $wc_coupon->get_id();
+                if ($coupon_id) {
+                    update_post_meta($coupon_id, '_vendor_id', $user->ID);
+                    wp_update_post(array(
+                        'ID'          => $coupon_id,
+                        'post_author' => $user->ID,
+                    ));
+                }
+            } catch (Exception $e) {
+                error_log('ZipBiz: WC_Coupon creation error: ' . $e->getMessage());
+            }
+        }
+
+        // Fallback to inserting shop_coupon post directly
+        if (empty($coupon_id)) {
+            $post_data = array(
+                'post_title'   => $code,
+                'post_content' => $description,
+                'post_status'  => 'publish',
+                'post_author'  => $user->ID,
+                'post_type'    => 'shop_coupon',
+            );
+            $inserted = wp_insert_post($post_data);
+            if (!is_wp_error($inserted) && $inserted) {
+                $coupon_id = $inserted;
+                update_post_meta($coupon_id, 'discount_type', $type);
+                update_post_meta($coupon_id, 'coupon_amount', $discount);
+                update_post_meta($coupon_id, 'individual_use', 'no');
+                update_post_meta($coupon_id, 'usage_limit', '');
+                update_post_meta($coupon_id, 'usage_count', '0');
+                if (!empty($expiry)) {
+                    update_post_meta($coupon_id, 'expiry_date', $expiry);
+                }
+                update_post_meta($coupon_id, 'apply_before_tax', 'yes');
+                update_post_meta($coupon_id, 'free_shipping', 'no');
+                update_post_meta($coupon_id, '_vendor_id', $user->ID);
+            }
         }
 
         $coupons = get_user_meta($user->ID, '_zipbiz_vendor_coupons', true) ?: array();
         $new_coupon = array(
-            'id'          => time(),
-            'code'        => $code,
-            'discount'    => $discount,
-            'type'        => sanitize_text_field($params['type'] ?? 'percentage'),
-            'description' => $description,
-            'expiry'      => sanitize_text_field($params['expiry'] ?? date('Y-m-d', strtotime('+30 days'))),
-            'status'      => 'active',
-            'created_at'  => current_time('mysql'),
+            'id'            => $coupon_id ?: time(),
+            'code'          => $code,
+            'discount'      => $discount,
+            'amount'        => $discount,
+            'type'          => $type,
+            'discount_type' => $type,
+            'description'   => $description,
+            'expiry'        => $expiry,
+            'status'        => 'active',
+            'created_at'    => current_time('mysql'),
         );
         $coupons[] = $new_coupon;
         update_user_meta($user->ID, '_zipbiz_vendor_coupons', $coupons);

@@ -184,7 +184,6 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
                     Icons.receipt_long,
                     'My Bookings & Orders',
                     'Track live technician & past invoices',
-                    trailingBadge: 'Active',
                     onTap: () => FluxNavigate.pushNamed(RouteList.bookingHistory, context: context),
                   ),
                   const Divider(height: 1),
@@ -263,7 +262,7 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.logout, size: 18, color: Colors.red),
-                  label: const Text('Sign Out from ZipBiz', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  label: const Text('Sign Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 12),

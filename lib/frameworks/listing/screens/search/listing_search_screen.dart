@@ -305,9 +305,12 @@ class ListingSearchScreenState extends State<ListingSearchScreen>
                                     padding: const EdgeInsets.symmetric(horizontal: 14),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
-                                  child: const Text(
-                                    'Search',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  child: const Center(
+                                    child: Text(
+                                      'Search',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
                                   ),
                                 ),
                               ),

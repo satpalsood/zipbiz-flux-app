@@ -181,9 +181,11 @@ class ZipBizApiService {
     required User user,
     required int bookingId,
     required String action, // 'accept', 'reject', 'start', 'complete'
+    String? otp,
   }) async {
     final url = Uri.parse('$_baseUrl/vendor/bookings/$bookingId/$action');
-    final response = await http.post(url, headers: _getHeaders(user));
+    final body = (otp != null && otp.isNotEmpty) ? jsonEncode({'otp': otp}) : null;
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
     final data = jsonDecode(response.body);
     return response.statusCode == 200 && data['success'] == true;
   }

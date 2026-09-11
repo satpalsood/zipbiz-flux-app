@@ -100,28 +100,31 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
                         ),
                       ),
                     ),
-                  GestureDetector(
-                    onTap: () {},
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      height: 26,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.location_on,
-                              color: Color(0xFFFF672D), size: 18),
-                          const SizedBox(width: 3),
-                          Text(
-                            'ZipBiz',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: textColor,
-                              letterSpacing: -0.5,
+                  Padding(
+                    padding: EdgeInsets.only(left: canShowBack ? 0.0 : 8.0),
+                    child: GestureDetector(
+                      onTap: () {},
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        height: 26,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_on,
+                                color: Color(0xFFFF672D), size: 18),
+                            const SizedBox(width: 3),
+                            Text(
+                              'ZipBiz',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: textColor,
+                                letterSpacing: -0.5,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

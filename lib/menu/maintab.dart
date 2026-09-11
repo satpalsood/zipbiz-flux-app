@@ -24,6 +24,7 @@ import '../modules/dynamic_layout/index.dart';
 import '../modules/dynamic_layout/tabbar/mixins/floating_shape.dart';
 import '../routes/flux_navigate.dart';
 import '../routes/route.dart';
+import '../screens/bookings/zipbiz_bookings_dashboard_screen.dart';
 import '../screens/index.dart' show NotificationScreen;
 import '../screens/settings/rate_myapp_mixin.dart';
 import '../screens/users/age_restriction_screen.dart';
@@ -398,6 +399,9 @@ extension TabBarMenuExtention on MainTabsState {
       }
       currentTabIndex = targetIndex;
       _emitChildTabName();
+      if (nameTab == RouteList.bookingHistory || nameTab == 'booking-history' || nameTab == 'bookings') {
+        ZipBizBookingsDashboardScreen.refreshNotifier.value++;
+      }
     } else if (allowPush) {
       if (nameTab.toString() == RouteList.profile) {
         FluxNavigate.pushNamed(
@@ -628,7 +632,16 @@ extension TabBarMenuExtention on MainTabsState {
 
     if (targetNavigator != null && targetNavigator.canPop()) {
       targetNavigator.popUntil((r) => r.isFirst);
-    } else if (currentTabIndex == index) {
+    }
+
+    if (tabData?.layout == RouteList.bookingHistory ||
+        tabData?.layout == 'booking-history' ||
+        tabData?.layout == 'bookings' ||
+        index == 2) {
+      ZipBizBookingsDashboardScreen.refreshNotifier.value++;
+    }
+
+    if (currentTabIndex == index) {
       final controller = listPrimaryScrollController[index];
 
       if (controller != null &&

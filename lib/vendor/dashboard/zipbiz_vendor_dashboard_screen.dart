@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../common/constants.dart';
+import '../../common/tools.dart';
 import '../../core/api/zipbiz_api_service.dart';
 import '../../core/theme/zipbiz_colors.dart';
 import '../../core/theme/zipbiz_typography.dart';
 import '../../models/user_model.dart';
+import '../../screens/services/zipbiz_services_directory_screen.dart';
 import '../../widgets/common/zipbiz_badge.dart';
 import '../../widgets/common/zipbiz_button.dart';
 import '../../widgets/common/zipbiz_card.dart';
@@ -26,6 +29,11 @@ class _ZipBizVendorDashboardScreenState
   int _activeTab = 0; // 0: Overview, 1: Job Requests, 2: Wallet, 3: Listings, 4: Stats, 5: Coupons, 6: Reviews
   bool _isLoading = true;
   bool _isOnline = true;
+
+  // Live Timer for In-Progress Services
+  final Map<int, DateTime> _serviceStartTimes = {};
+  final Map<int, String> _elapsedDurations = {};
+  Timer? _liveJobTimer;
 
   // Data
   Map<String, dynamic> _dashboardStats = {};
@@ -51,7 +59,28 @@ class _ZipBizVendorDashboardScreenState
   void initState() {
     super.initState();
     _activeTab = widget.initialTabIndex;
+    _isOnline = ZipBizBookingAvailability.isAcceptingNotifier.value;
     _loadAllVendorData();
+    _liveJobTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_serviceStartTimes.isNotEmpty && mounted) {
+        setState(() {
+          final now = DateTime.now();
+          _serviceStartTimes.forEach((jobId, startTime) {
+            final diff = now.difference(startTime);
+            final hours = diff.inHours.toString().padLeft(2, '0');
+            final mins = (diff.inMinutes % 60).toString().padLeft(2, '0');
+            final secs = (diff.inSeconds % 60).toString().padLeft(2, '0');
+            _elapsedDurations[jobId] = '$hours:$mins:$secs';
+          });
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _liveJobTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadAllVendorData() async {
@@ -89,6 +118,13 @@ class _ZipBizVendorDashboardScreenState
           _dashboardStats = results[0] as Map<String, dynamic>;
           final bData = results[1] as Map<String, dynamic>;
           _jobRequests = (bData['items'] as List?) ?? [];
+          for (var j in _jobRequests) {
+            final jId = j['id'];
+            final jStatus = (j['status'] ?? '').toString();
+            if (jId is int && jStatus == 'in_progress') {
+              _serviceStartTimes[jId] ??= DateTime.now();
+            }
+          }
           _vendorListings = results[2] as List;
           _customerBookings = results[3] as List;
           _walletData = results[4] as Map<String, dynamic>;
@@ -103,7 +139,7 @@ class _ZipBizVendorDashboardScreenState
     }
   }
 
-  Future<void> _updateJobRequest(int bookingId, String action) async {
+  Future<void> _updateJobRequest(int bookingId, String action, {String? otp}) async {
     final user = Provider.of<UserModel>(context, listen: false).user;
     if (user == null) return;
 
@@ -112,11 +148,14 @@ class _ZipBizVendorDashboardScreenState
         user: user,
         bookingId: bookingId,
         action: action,
+        otp: otp,
       );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Job request #$bookingId ${action}ed!'),
-          backgroundColor: action == 'accept' ? ZipBizColors.statusOpen : Colors.orange,
+          backgroundColor: (action == 'accept' || action == 'start' || action == 'complete')
+              ? ZipBizColors.statusOpen
+              : Colors.orange,
         ),
       );
       _loadAllVendorData();
@@ -437,7 +476,10 @@ class _ZipBizVendorDashboardScreenState
                   Switch(
                     value: _isOnline,
                     activeColor: ZipBizColors.statusOpen,
-                    onChanged: (val) => setState(() => _isOnline = val),
+                    onChanged: (val) {
+                      setState(() => _isOnline = val);
+                      ZipBizBookingAvailability.isAcceptingNotifier.value = val;
+                    },
                   ),
                 ],
               ),
@@ -594,10 +636,10 @@ class _ZipBizVendorDashboardScreenState
           children: [
             Expanded(
               child: _buildActionShortcut(
-                title: 'New Listing',
-                icon: Icons.add_business,
+                title: 'View Listings',
+                icon: Icons.storefront,
                 color: ZipBizColors.primaryContainer,
-                onTap: _openAddListing,
+                onTap: () => setState(() => _activeTab = 3),
               ),
             ),
             const SizedBox(width: 10),
@@ -870,129 +912,535 @@ class _ZipBizVendorDashboardScreenState
     final custAddress = customer['address'] ?? '';
     final date = job['date'] ?? '';
     final time = job['time_slot'] ?? '';
-    final status = job['status'] ?? 'waiting';
+    final status = (job['status'] ?? 'waiting').toString().toLowerCase();
     final price = job['price'] ?? '0';
     final services = (job['services'] as List?) ?? [];
 
     final isWaiting = (status == 'waiting' || status == 'pending');
 
-    return ZipBizCard(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Column(
+    return InkWell(
+      onTap: () => _showJobDetailsDialog(job),
+      borderRadius: BorderRadius.circular(12),
+      child: ZipBizCard(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Job #ZB-$id', style: const TextStyle(fontWeight: FontWeight.bold, color: ZipBizColors.primaryContainer)),
+                _buildStatusChip(status),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(custName, style: ZipBizTypography.labelLarge.copyWith(fontSize: 16)),
+            if (custAddress.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(custAddress, style: ZipBizTypography.bodySmall)),
+                ],
+              ),
+            ],
+            const SizedBox(height: 4),
+            // Customer phone hidden while waiting/pending
+            if (isWaiting)
+              Row(
+                children: [
+                  const Icon(Icons.phone_locked, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text('Customer phone unlocks upon acceptance', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                ],
+              )
+            else if (custPhone.isNotEmpty)
+              Row(
+                children: [
+                  const Icon(Icons.phone, size: 14, color: ZipBizColors.primaryContainer),
+                  const SizedBox(width: 4),
+                  Text(custPhone, style: ZipBizTypography.bodySmall.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => Tools.launchURL('tel:$custPhone'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: ZipBizColors.primaryContainer.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                      child: const Text('Call', style: TextStyle(fontSize: 10, color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.schedule, size: 14, color: ZipBizColors.secondary),
+                const SizedBox(width: 4),
+                Text('$date at $time', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ZipBizColors.secondary)),
+                const Spacer(),
+                Text('₹$price', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16, color: ZipBizColors.primary)),
+              ],
+            ),
+            if (status == 'in_progress')
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.timer, size: 16, color: Colors.blue),
+                    const SizedBox(width: 6),
+                    const Text('Service Stopwatch: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    Text(_elapsedDurations[id] ?? '00:00:00', style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E3A8A))),
+                  ],
+                ),
+              ),
+            if (services.isNotEmpty) ...[
+              const Divider(height: 16),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: services.map((s) {
+                  final sName = s is Map ? s['name'] : s.toString();
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: ZipBizColors.surfaceSubtle, borderRadius: BorderRadius.circular(6)),
+                    child: Text('$sName', style: const TextStyle(fontSize: 11)),
+                  );
+                }).toList(),
+              ),
+            ],
+            if (isWaiting) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Reject'),
+                      onPressed: () => _updateJobRequest(id, 'reject'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ZipBizColors.statusOpen,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.check, size: 16),
+                      label: const Text('Accept'),
+                      onPressed: () => _updateJobRequest(id, 'accept'),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (status == 'confirmed') ...[
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ZipBizColors.primaryContainer,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 38),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.play_arrow, size: 16),
+                label: const Text('Start Service (Enter OTP)'),
+                onPressed: () => _handleStartService(job),
+              ),
+            ] else if (status == 'in_progress') ...[
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 38),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.done_all, size: 16),
+                label: const Text('Complete Service (Enter OTP)'),
+                onPressed: () => _handleCompleteService(job),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleStartService(dynamic job) {
+    final id = job['id'] ?? 0;
+    final bId = int.tryParse(id.toString()) ?? 1000;
+    final expectedStartOtp = ((bId * 31 + 1729) % 9000 + 1000).toString();
+    final otpController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.lock_clock, color: ZipBizColors.primaryContainer),
+            SizedBox(width: 8),
+            Text('Start Service OTP', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ask the customer for their 4-digit Start Service OTP to verify arrival and begin the service.',
+              style: TextStyle(fontSize: 13, color: ZipBizColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+              decoration: InputDecoration(
+                hintText: '••••',
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: ZipBizColors.primaryContainer, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ZipBizColors.primaryContainer,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final enteredOtp = otpController.text.trim();
+              if (enteredOtp != expectedStartOtp) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Invalid Start OTP! Please ask customer for correct 4-digit OTP.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              _serviceStartTimes[id] = DateTime.now();
+              await _updateJobRequest(id, 'start', otp: enteredOtp);
+            },
+            child: const Text('Verify & Start', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleCompleteService(dynamic job) {
+    final id = job['id'] ?? 0;
+    final bId = int.tryParse(id.toString()) ?? 1000;
+    final expectedFinishOtp = ((bId * 47 + 2468) % 9000 + 1000).toString();
+    final otpController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.verified, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Finish Service OTP', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ask the customer for their 4-digit Finish Service OTP to verify completion and close this job.',
+              style: TextStyle(fontSize: 13, color: ZipBizColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+              decoration: InputDecoration(
+                hintText: '••••',
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.green, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final enteredOtp = otpController.text.trim();
+              if (enteredOtp != expectedFinishOtp) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Invalid Finish OTP! Please ask customer for correct 4-digit OTP.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              _serviceStartTimes.remove(id);
+              _elapsedDurations.remove(id);
+              await _updateJobRequest(id, 'complete', otp: enteredOtp);
+            },
+            child: const Text('Verify & Complete', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showJobDetailsDialog(dynamic job) {
+    final id = job['id'] ?? 0;
+    final customer = job['customer'] ?? {};
+    final custName = customer['name'] ?? 'Customer';
+    final custPhone = customer['phone'] ?? '';
+    final custAddress = customer['address'] ?? '';
+    final date = job['date'] ?? '';
+    final time = job['time_slot'] ?? '';
+    final status = (job['status'] ?? 'waiting').toString().toLowerCase();
+    final price = job['price'] ?? '0';
+    final services = (job['services'] as List?) ?? [];
+
+    final isWaiting = (status == 'waiting' || status == 'pending');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Job #ZB-$id Details', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18)),
+                    _buildStatusChip(status),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildJobDetailRow(Icons.person, 'Customer', custName),
+                if (isWaiting)
+                  _buildJobDetailRow(Icons.phone_locked, 'Phone', 'Hidden until accepted', isItalic: true)
+                else if (custPhone.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.phone, size: 15, color: ZipBizColors.primaryContainer),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 100,
+                          child: Text('Phone', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        ),
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(custPhone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () => Tools.launchURL('tel:$custPhone'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: ZipBizColors.primaryContainer.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('Call', style: TextStyle(fontSize: 10, color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (custAddress.isNotEmpty)
+                  _buildJobDetailRow(Icons.location_on, 'Address', custAddress),
+                _buildJobDetailRow(Icons.calendar_today, 'Date & Time', '$date at $time'),
+                _buildJobDetailRow(Icons.currency_rupee, 'Total Price', '₹$price', isBold: true, valueColor: ZipBizColors.primary),
+                if (status == 'in_progress') ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue.withOpacity(0.25)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.timer, color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('Active Elapsed Time: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
+                        Text(_elapsedDurations[id] ?? '00:00:00', style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A))),
+                      ],
+                    ),
+                  ),
+                ],
+                if (services.isNotEmpty) ...[
+                  const Divider(height: 24),
+                  const Text('SERVICES REQUESTED', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  ...services.map((s) {
+                    final sName = s is Map ? s['name'] : s.toString();
+                    final sPrice = s is Map ? s['price'] : null;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(child: Text('$sName', style: const TextStyle(fontSize: 13))),
+                          if (sPrice != null)
+                            Text('₹$sPrice', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    if (isWaiting) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ZipBizColors.statusOpen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _updateJobRequest(id, 'accept');
+                          },
+                          child: const Text('Accept Job', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ] else if (status == 'confirmed') ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ZipBizColors.primaryContainer,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _handleStartService(job);
+                          },
+                          child: const Text('Start Service', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ] else if (status == 'in_progress') ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _handleCompleteService(job);
+                          },
+                          child: const Text('Complete Service', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJobDetailRow(IconData icon, String label, String value, {bool isBold = false, bool isItalic = false, Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Job #ZB-$id', style: const TextStyle(fontWeight: FontWeight.bold, color: ZipBizColors.primaryContainer)),
-              _buildStatusChip(status),
-            ],
+          Icon(icon, size: 15, color: ZipBizColors.primaryContainer),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 100,
+            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           ),
-          const SizedBox(height: 8),
-          Text(custName, style: ZipBizTypography.labelLarge.copyWith(fontSize: 16)),
-          if (custAddress.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Expanded(child: Text(custAddress, style: ZipBizTypography.bodySmall)),
-              ],
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                color: valueColor ?? ZipBizColors.onSurface,
+              ),
             ),
-          ],
-          if (custPhone.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.phone, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(custPhone, style: ZipBizTypography.bodySmall),
-              ],
-            ),
-          ],
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.schedule, size: 14, color: ZipBizColors.secondary),
-              const SizedBox(width: 4),
-              Text('$date at $time', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ZipBizColors.secondary)),
-              const Spacer(),
-              Text('₹$price', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16, color: ZipBizColors.primary)),
-            ],
           ),
-          if (services.isNotEmpty) ...[
-            const Divider(height: 16),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: services.map((s) {
-                final sName = s is Map ? s['name'] : s.toString();
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: ZipBizColors.surfaceSubtle, borderRadius: BorderRadius.circular(6)),
-                  child: Text('$sName', style: const TextStyle(fontSize: 11)),
-                );
-              }).toList(),
-            ),
-          ],
-          if (isWaiting) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: const Icon(Icons.close, size: 16),
-                    label: const Text('Reject'),
-                    onPressed: () => _updateJobRequest(id, 'reject'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ZipBizColors.statusOpen,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: const Icon(Icons.check, size: 16),
-                    label: const Text('Accept'),
-                    onPressed: () => _updateJobRequest(id, 'accept'),
-                  ),
-                ),
-              ],
-            ),
-          ] else if (status == 'confirmed') ...[
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ZipBizColors.primaryContainer,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 38),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: const Icon(Icons.play_arrow, size: 16),
-              label: const Text('Start Service'),
-              onPressed: () => _updateJobRequest(id, 'start'),
-            ),
-          ] else if (status == 'in_progress') ...[
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 38),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: const Icon(Icons.done_all, size: 16),
-              label: const Text('Mark Complete'),
-              onPressed: () => _updateJobRequest(id, 'complete'),
-            ),
-          ],
         ],
       ),
     );
@@ -1003,7 +1451,8 @@ class _ZipBizVendorDashboardScreenState
   // -------------------------------------------------------------
   Widget _buildWalletTab() {
     final gross = _walletData['gross_earnings'] ?? '0';
-    final commission = _walletData['platform_commission'] ?? '0';
+    final commissionRate = _walletData['commission_rate'] ?? 20;
+    final commission = _walletData['platform_commission'] ?? _walletData['commission'] ?? '0';
     final net = _walletData['net_earnings'] ?? '0';
     final available = _walletData['available_balance'] ?? net;
     final payouts = (_walletData['withdrawals'] as List?) ?? [];
@@ -1056,7 +1505,7 @@ class _ZipBizVendorDashboardScreenState
             children: [
               _buildWalletRow('Gross Booking Earnings', '₹$gross', false),
               const Divider(),
-              _buildWalletRow('Platform Commission (10%)', '-₹$commission', true),
+              _buildWalletRow('Platform Commission ($commissionRate%)', '-₹$commission', true),
               const Divider(),
               _buildWalletRow('Net Realized Earnings', '₹$net', false, isBold: true),
             ],
@@ -1078,6 +1527,11 @@ class _ZipBizVendorDashboardScreenState
           )
         else
           ...payouts.map((w) {
+            final wStatus = (w["status"] ?? "pending").toString().toLowerCase();
+            final isPaid = wStatus == 'paid' || wStatus == 'completed';
+            final statusLabel = isPaid ? 'Paid' : 'Pending Approval';
+            final statusColor = isPaid ? ZipBizColors.statusOpen : Colors.orange;
+
             return ZipBizCard(
               margin: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -1086,15 +1540,23 @@ class _ZipBizVendorDashboardScreenState
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Payout via ${w["method"] ?? "UPI"}', style: ZipBizTypography.labelMedium),
-                      Text('${w["date"] ?? "Recent"}', style: ZipBizTypography.bodySmall),
+                      Text('Payout via ${w["payout_details"] ?? w["method"] ?? "UPI / Bank"}', style: ZipBizTypography.labelMedium),
+                      Text('${w["created_at"] ?? w["date"] ?? "Recent"}', style: ZipBizTypography.bodySmall),
                     ],
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text('₹${w["amount"]}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      Text('${w["status"] ?? "completed"}', style: const TextStyle(color: ZipBizColors.statusOpen, fontSize: 11, fontWeight: FontWeight.bold)),
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
                     ],
                   ),
                 ],
@@ -1143,13 +1605,24 @@ class _ZipBizVendorDashboardScreenState
                 Text('Manage your business presence on ZipBiz marketplace', style: ZipBizTypography.bodySmall),
               ],
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add Listing'),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: SizedBox(
+            width: 220,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZipBizColors.primaryContainer,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: const Text('Add Listing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               onPressed: _openAddListing,
             ),
-          ],
+          ),
         ),
         const SizedBox(height: 16),
         if (_vendorListings.isEmpty)
@@ -1348,13 +1821,24 @@ class _ZipBizVendorDashboardScreenState
                 Text('Create special discounts to attract more bookings', style: ZipBizTypography.bodySmall),
               ],
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: ZipBizColors.primaryContainer, foregroundColor: Colors.white),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('New Coupon'),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Center(
+          child: SizedBox(
+            width: 220,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZipBizColors.primaryContainer,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: const Text('New Coupon', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               onPressed: _openCreateCouponDialog,
             ),
-          ],
+          ),
         ),
         const SizedBox(height: 16),
         if (_coupons.isEmpty)
@@ -1374,9 +1858,9 @@ class _ZipBizVendorDashboardScreenState
           )
         else
           ..._coupons.map((c) {
-            final code = c['code'] ?? 'COUPON';
-            final amount = c['amount'] ?? '0';
-            final type = c['discount_type'] ?? 'percent';
+            final code = c['code']?.toString() ?? 'COUPON';
+            final amount = c['amount']?.toString() ?? c['discount']?.toString() ?? '0';
+            final type = c['discount_type']?.toString() ?? c['type']?.toString() ?? 'percent';
 
             return ZipBizCard(
               margin: const EdgeInsets.only(bottom: 10),

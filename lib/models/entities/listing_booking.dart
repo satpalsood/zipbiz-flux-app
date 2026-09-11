@@ -14,6 +14,12 @@ class ListingBooking {
   String? paymentMethod;
   Map<String, String?> adults = {};
   List<Map<String, String>> services = [];
+  Map<String, dynamic> rawComment = {};
+  Map<String, dynamic>? address;
+  String? timeSlot;
+  String? bookingDate;
+  String? hours;
+
   ListingBooking(
       this.title,
       this.featuredImage,
@@ -25,7 +31,11 @@ class ListingBooking {
       this.orderId,
       this.orderStatus,
       {this.id,
-      this.paymentMethod});
+      this.paymentMethod,
+      this.address,
+      this.timeSlot,
+      this.bookingDate,
+      this.hours});
 
   ListingBooking.fromJson(Map json) {
     id = json['id']?.toString() ?? json['order_id']?.toString();
@@ -55,6 +65,23 @@ class ListingBooking {
         commentJson = json['comment'];
       }
     }
+
+    if (commentJson.isNotEmpty) {
+      rawComment = Map<String, dynamic>.from(commentJson);
+      if (commentJson['address'] is Map) {
+        address = Map<String, dynamic>.from(commentJson['address']);
+      }
+      timeSlot = commentJson['time_slot']?.toString() ?? commentJson['slot']?.toString();
+      bookingDate = commentJson['date']?.toString() ?? commentJson['booking_date']?.toString();
+      hours = commentJson['hours']?.toString() ?? commentJson['duration']?.toString();
+    }
+
+    if (address == null && json['address'] is Map) {
+      address = Map<String, dynamic>.from(json['address']);
+    }
+    timeSlot ??= json['time_slot']?.toString() ?? json['slot']?.toString();
+    bookingDate ??= json['date']?.toString() ?? json['date_start']?.toString();
+    hours ??= json['hours']?.toString();
 
     if (paymentMethod == null || paymentMethod!.isEmpty) {
       paymentMethod = commentJson['payment_method']?.toString() ??

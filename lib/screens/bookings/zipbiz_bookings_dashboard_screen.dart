@@ -15,6 +15,8 @@ import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_header.dart';
 
 class ZipBizBookingsDashboardScreen extends StatefulWidget {
+  static final ValueNotifier<int> refreshNotifier = ValueNotifier<int>(0);
+
   const ZipBizBookingsDashboardScreen({super.key});
 
   @override
@@ -33,9 +35,17 @@ class _ZipBizBookingsDashboardScreenState
   @override
   void initState() {
     super.initState();
+    ZipBizBookingsDashboardScreen.refreshNotifier.addListener(_loadBookings);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBookings();
     });
+  }
+
+  @override
+  void dispose() {
+    ZipBizBookingsDashboardScreen.refreshNotifier.removeListener(_loadBookings);
+    _refreshController.dispose();
+    super.dispose();
   }
 
   @override
@@ -117,6 +127,14 @@ class _ZipBizBookingsDashboardScreenState
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<UserModel>(context).user;
+
+    if (user != null && _allBookings.isEmpty && !_isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _allBookings.isEmpty && !_isLoading) {
+          _loadBookings();
+        }
+      });
+    }
 
     if (user == null) {
       return Scaffold(
@@ -283,173 +301,444 @@ class _ZipBizBookingsDashboardScreenState
       statusIcon = Icons.cancel_rounded;
     }
 
-    return ZipBizCard(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Row: Status badge & Booking ID
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      statusIcon,
-                      size: 13,
-                      color: statusColor,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      statusLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+    return InkWell(
+      onTap: () => _showBookingDetailsDialog(booking),
+      borderRadius: BorderRadius.circular(12),
+      child: ZipBizCard(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Row: Status badge & Booking ID
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        statusIcon,
+                        size: 13,
                         color: statusColor,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Text('#ZB-${booking.id ?? booking.orderId ?? ""}', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1)),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Service Info
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  color: ZipBizColors.surfaceContainer,
-                  child: (booking.featuredImage != null && booking.featuredImage!.isNotEmpty)
-                      ? Image.network(booking.featuredImage!, fit: BoxFit.cover)
-                      : const Icon(Icons.handyman, color: ZipBizColors.primaryContainer),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(booking.title ?? 'Home Service Appointment', style: ZipBizTypography.labelLarge.copyWith(fontSize: 15)),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text('₹${booking.price ?? '499'}', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16, color: ZipBizColors.primary, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 8),
-                        Builder(
-                          builder: (context) {
-                            final isPaid = (booking.paymentMethod?.toLowerCase() == 'razorpay' &&
-                                (booking.orderStatus == 'completed' ||
-                                    booking.orderStatus == 'processing' ||
-                                    status.contains('PAID') ||
-                                    status.contains('CONFIRM')));
-                            final paymentText = isPaid ? 'Paid Online' : 'Payment Pending';
-                            final paymentColor = isPaid ? ZipBizColors.statusOpen : const Color(0xFFF59E0B);
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: paymentColor.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                paymentText,
-                                style: TextStyle(fontSize: 10, color: paymentColor, fontWeight: FontWeight.bold),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 20),
-
-          // Schedule Date & Location
-          Row(
-            children: [
-              const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(booking.createdDate ?? 'Scheduled Slot', style: ZipBizTypography.bodySmall.copyWith(fontSize: 12)),
-              const Spacer(),
-              const Icon(Icons.location_on, size: 14, color: ZipBizColors.primaryContainer),
-              const SizedBox(width: 4),
-              Text('Mohali / Chandigarh', style: ZipBizTypography.bodySmall.copyWith(fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Action Buttons: Call, Chat, Reschedule
-          Row(
-            children: [
-              Expanded(
-                child: (isConfirmed || isInProgress || isCompleted)
-                    ? OutlinedButton.icon(
-                        icon: const Icon(Icons.chat_bubble_outline, size: 16),
-                        label: const Text('Chat with Pro', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: ZipBizColors.primaryContainer,
-                          side: const BorderSide(color: ZipBizColors.primaryContainer),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: () {
-                          FluxNavigate.pushNamed(RouteList.chat, context: context);
-                        },
-                      )
-                    : Tooltip(
-                        message: 'Chat unlocks once provider approves your request',
-                        child: OutlinedButton.icon(
-                          icon: Icon(Icons.lock_outline, size: 15, color: Colors.grey.shade400),
-                          label: Text('Awaiting Pro', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.grey.shade300),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Direct chat unlocks once the provider accepts your booking request.'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                          },
+                      const SizedBox(width: 5),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
                         ),
                       ),
-              ),
-              const SizedBox(width: 8),
-              if (!isCancelled)
+                    ],
+                  ),
+                ),
+                Text('#ZB-${booking.id ?? booking.orderId ?? ""}', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1)),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Service Info
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    color: ZipBizColors.surfaceContainer,
+                    child: (booking.featuredImage != null && booking.featuredImage!.isNotEmpty)
+                        ? Image.network(booking.featuredImage!, fit: BoxFit.cover)
+                        : const Icon(Icons.handyman, color: ZipBizColors.primaryContainer),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(booking.title ?? 'Home Service Appointment', style: ZipBizTypography.labelLarge.copyWith(fontSize: 15)),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Text('₹${booking.price ?? '499'}', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16, color: ZipBizColors.primary, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 8),
+                          Builder(
+                            builder: (context) {
+                              final isPaid = (booking.paymentMethod?.toLowerCase() == 'razorpay' &&
+                                  (booking.orderStatus == 'completed' ||
+                                      booking.orderStatus == 'processing' ||
+                                      status.contains('PAID') ||
+                                      status.contains('CONFIRM')));
+                              final paymentText = isPaid ? 'Paid Online' : 'Payment Pending';
+                              final paymentColor = isPaid ? ZipBizColors.statusOpen : const Color(0xFFF59E0B);
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: paymentColor.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  paymentText,
+                                  style: TextStyle(fontSize: 10, color: paymentColor, fontWeight: FontWeight.bold),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+
+            // Schedule Date & Location
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                const SizedBox(width: 6),
+                Text(booking.bookingDate ?? booking.createdDate ?? 'Scheduled Slot', style: ZipBizTypography.bodySmall.copyWith(fontSize: 12)),
+                const Spacer(),
+                const Icon(Icons.location_on, size: 14, color: ZipBizColors.primaryContainer),
+                const SizedBox(width: 4),
+                Text(
+                  (booking.address != null && (booking.address!['city'] != null || booking.address!['area'] != null))
+                      ? '${booking.address!['area'] ?? booking.address!['city'] ?? "Mohali"}'
+                      : 'Mohali / Chandigarh',
+                  style: ZipBizTypography.bodySmall.copyWith(fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Action Buttons: View OTP & Details, Cancel / Modify
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.key, size: 15),
+                    label: const Text('View OTP & Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: ZipBizColors.primaryContainer,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    onPressed: () {
-                      _showCancelConfirm(booking);
-                    },
-                    child: const Text('Cancel / Modify', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: () => _showBookingDetailsDialog(booking),
                   ),
                 ),
-            ],
+                if (!isCancelled) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red.shade700,
+                        side: BorderSide(color: Colors.red.shade300),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        _showCancelConfirm(booking);
+                      },
+                      child: const Text('Cancel / Modify', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBookingDetailsDialog(ListingBooking booking) {
+    final bId = int.tryParse(booking.id?.toString() ?? booking.orderId?.toString() ?? '') ?? 1000;
+    final startOtp = ((bId * 31 + 1729) % 9000 + 1000).toString();
+    final finishOtp = ((bId * 47 + 2468) % 9000 + 1000).toString();
+
+    final status = (booking.status ?? 'waiting').toUpperCase();
+    final isPaid = (booking.paymentMethod?.toLowerCase() == 'razorpay' &&
+        (booking.orderStatus == 'completed' ||
+            booking.orderStatus == 'processing' ||
+            status.contains('PAID') ||
+            status.contains('CONFIRM')));
+
+    // Address extraction
+    String addressStr = 'Mohali / Chandigarh';
+    if (booking.address != null && booking.address!.isNotEmpty) {
+      final addr = booking.address!;
+      final parts = <String>[];
+      if (addr['house_no'] != null && addr['house_no'].toString().isNotEmpty) parts.add(addr['house_no'].toString());
+      if (addr['street'] != null && addr['street'].toString().isNotEmpty) parts.add(addr['street'].toString());
+      if (addr['area'] != null && addr['area'].toString().isNotEmpty) parts.add(addr['area'].toString());
+      if (addr['city'] != null && addr['city'].toString().isNotEmpty) parts.add(addr['city'].toString());
+      if (addr['pincode'] != null && addr['pincode'].toString().isNotEmpty) parts.add(addr['pincode'].toString());
+      if (parts.isNotEmpty) {
+        addressStr = parts.join(', ');
+      } else if (addr['address'] != null) {
+        addressStr = addr['address'].toString();
+      }
+    }
+
+    final timingStr = booking.timeSlot ?? 'Scheduled Slot';
+    final dateStr = booking.bookingDate ?? booking.createdDate ?? 'Scheduled Date';
+    final hoursStr = booking.hours ?? '2 Hours';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header: Title and Close button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('#ZB-${booking.id ?? booking.orderId ?? ""}', style: ZipBizTypography.labelSmall.copyWith(color: Colors.grey.shade600, letterSpacing: 1.1)),
+                          const SizedBox(height: 2),
+                          Text(booking.title ?? 'Service Appointment', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // OTP Verification Box (Prominent)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [ZipBizColors.primaryContainer.withOpacity(0.08), ZipBizColors.primary.withOpacity(0.04)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: ZipBizColors.primaryContainer.withOpacity(0.25)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.shield_outlined, size: 18, color: ZipBizColors.primaryContainer),
+                          SizedBox(width: 6),
+                          Text('Service Security OTPs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: ZipBizColors.primaryContainer)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.blue.shade100),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.play_circle_fill, size: 14, color: Colors.blue),
+                                      SizedBox(width: 4),
+                                      Text('Start OTP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    startOtp,
+                                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF1E3A8A)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text('Share to start service', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.green.shade100),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.check_circle, size: 14, color: Colors.green),
+                                      SizedBox(width: 4),
+                                      Text('Finish OTP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    finishOtp,
+                                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 3, color: Color(0xFF065F46)),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text('Share when completed', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Appointment & Schedule Section
+                Text('APPOINTMENT DETAILS', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                _buildDetailRow(Icons.calendar_today, 'Date', dateStr),
+                _buildDetailRow(Icons.access_time, 'Timing', timingStr),
+                _buildDetailRow(Icons.hourglass_bottom, 'Duration / Hours', hoursStr),
+                _buildDetailRow(Icons.location_on_outlined, 'Service Address', addressStr),
+                const Divider(height: 24),
+
+                // Services Breakdown
+                if (booking.services.isNotEmpty) ...[
+                  Text('SERVICES SELECTED', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
+                  const SizedBox(height: 8),
+                  ...booking.services.map((s) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(s['name'] ?? '', style: ZipBizTypography.bodySmall)),
+                        if ((s['price'] ?? '').isNotEmpty)
+                          Text('₹${s['price']}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      ],
+                    ),
+                  )),
+                  const Divider(height: 24),
+                ],
+
+                // Payment & Price Section
+                Text('PAYMENT SUMMARY', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                _buildDetailRow(
+                  Icons.payment,
+                  'Payment Method',
+                  (booking.paymentMethod?.toLowerCase() == 'razorpay') ? 'Razorpay Online' : 'Cash on Delivery (COD)',
+                ),
+                _buildDetailRow(
+                  Icons.verified_outlined,
+                  'Payment Status',
+                  isPaid ? 'Paid Online' : 'Payment Pending',
+                  valueColor: isPaid ? ZipBizColors.statusOpen : const Color(0xFFF59E0B),
+                ),
+                _buildDetailRow(
+                  Icons.currency_rupee,
+                  'Total Amount',
+                  '₹${booking.price ?? '499'}',
+                  isBold: true,
+                  valueColor: ZipBizColors.primary,
+                ),
+                const SizedBox(height: 20),
+
+                // Close & Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    if (!status.contains('CANCEL') && !status.contains('REJECT')) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade600,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showCancelConfirm(booking);
+                          },
+                          child: const Text('Cancel Booking', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value, {bool isBold = false, Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: ZipBizColors.primaryContainer),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 110,
+            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                color: valueColor ?? ZipBizColors.onSurface,
+              ),
+            ),
           ),
         ],
       ),

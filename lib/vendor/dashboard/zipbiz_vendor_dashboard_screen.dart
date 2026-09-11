@@ -32,7 +32,6 @@ class _ZipBizVendorDashboardScreenState
   List<dynamic> _vendorListings = [];
   List<dynamic> _jobRequests = [];
   List<dynamic> _customerBookings = [];
-  List<dynamic> _conversations = [];
   Map<String, dynamic> _walletData = {};
   List<dynamic> _reviews = [];
   Map<String, dynamic> _bookmarks = {};
@@ -69,7 +68,6 @@ class _ZipBizVendorDashboardScreenState
       final bookingsFuture = ZipBizApiService().getVendorBookings(user: user, page: 1, perPage: 30).catchError((_) => <String, dynamic>{'items': []});
       final myListingsFuture = ZipBizApiService().getVendorListings(user: user).catchError((_) => <dynamic>[]);
       final custBookingsFuture = ZipBizApiService().getCustomerBookings(user: user).catchError((_) => <dynamic>[]);
-      final convsFuture = ZipBizApiService().getConversations(user).catchError((_) => <dynamic>[]);
       final walletFuture = ZipBizApiService().getVendorWallet(user).catchError((_) => <String, dynamic>{});
       final reviewsFuture = ZipBizApiService().getVendorReviews(user).catchError((_) => <dynamic>[]);
       final bookmarksFuture = ZipBizApiService().getVendorBookmarks(user).catchError((_) => <String, dynamic>{});
@@ -80,7 +78,6 @@ class _ZipBizVendorDashboardScreenState
         bookingsFuture,
         myListingsFuture,
         custBookingsFuture,
-        convsFuture,
         walletFuture,
         reviewsFuture,
         bookmarksFuture,
@@ -94,11 +91,10 @@ class _ZipBizVendorDashboardScreenState
           _jobRequests = (bData['items'] as List?) ?? [];
           _vendorListings = results[2] as List;
           _customerBookings = results[3] as List;
-          _conversations = results[4] as List;
-          _walletData = results[5] as Map<String, dynamic>;
-          _reviews = results[6] as List;
-          _bookmarks = results[7] as Map<String, dynamic>;
-          _coupons = results[8] as List;
+          _walletData = results[4] as Map<String, dynamic>;
+          _reviews = results[5] as List;
+          _bookmarks = results[6] as Map<String, dynamic>;
+          _coupons = results[7] as List;
           _isLoading = false;
         });
       }
@@ -822,120 +818,7 @@ class _ZipBizVendorDashboardScreenState
   }
 
   // -------------------------------------------------------------
-  // TAB 2: MESSAGES (Customer <-> Vendor Chat)
-  // -------------------------------------------------------------
-  Widget _buildMessagesTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Customer Messages', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 20)),
-                const SizedBox(height: 2),
-                Text('Chat directly with clients about their service requests', style: ZipBizTypography.bodySmall),
-              ],
-            ),
-            IconButton(
-              icon: const Icon(Icons.refresh, color: ZipBizColors.primaryContainer),
-              onPressed: _loadAllVendorData,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (_conversations.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Column(
-                children: [
-                  const Icon(Icons.forum_outlined, size: 54, color: Colors.grey),
-                  const SizedBox(height: 12),
-                  Text('No customer inquiries yet.', style: ZipBizTypography.bodyMedium),
-                  const SizedBox(height: 4),
-                  Text('When clients message you from your listings, chats will appear here.', style: ZipBizTypography.bodySmall),
-                ],
-              ),
-            ),
-          )
-        else
-          ..._conversations.map((c) {
-            final pid = int.tryParse('${c["user_id"] ?? c["id"]}') ?? 0;
-            final name = c['name'] ?? 'ZipBiz Customer';
-            final avatar = c['avatar']?.toString();
-            final lastMsg = c['last_message'] ?? 'No message yet';
-            final time = c['time'] ?? '';
-            final unread = int.tryParse('${c["unread"]}') ?? 0;
-            final service = c['service'] ?? '';
-
-            return ZipBizCard(
-              margin: const EdgeInsets.only(bottom: 10),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ZipBizChatDetailScreen(
-                      recipientId: pid,
-                      recipientName: name,
-                      recipientAvatar: avatar,
-                      listingTitle: service,
-                    ),
-                  ),
-                ).then((_) => _loadAllVendorData());
-              },
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: ZipBizColors.primaryContainer.withOpacity(0.15),
-                    backgroundImage: (avatar != null && avatar.isNotEmpty) ? NetworkImage(avatar) : null,
-                    child: (avatar == null || avatar.isEmpty)
-                        ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'C', style: const TextStyle(color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold))
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(name, style: ZipBizTypography.labelLarge.copyWith(fontSize: 15)),
-                            if (time.isNotEmpty)
-                              Text(time.contains(' ') ? time.split(' ')[0] : time, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                          ],
-                        ),
-                        if (service.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(service, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: ZipBizColors.secondary, fontWeight: FontWeight.bold)),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(lastMsg, maxLines: 1, overflow: TextOverflow.ellipsis, style: ZipBizTypography.bodySmall),
-                      ],
-                    ),
-                  ),
-                  if (unread > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                      child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }),
-      ],
-    );
-  }
-
-  // -------------------------------------------------------------
-  // TAB 3: JOB REQUESTS (Vendor receives requests & can Accept/Reject)
+  // TAB: JOB REQUESTS (Vendor receives requests & can Accept/Reject)
   // -------------------------------------------------------------
   Widget _buildJobRequestsTab() {
     return Column(

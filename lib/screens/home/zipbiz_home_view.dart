@@ -1,3 +1,4 @@
+import '../../core/state/zipbiz_cart_manager.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flux_ui/flux_ui.dart';
@@ -26,14 +27,18 @@ class ZipBizHomeView extends StatefulWidget {
 
 class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   // Region Selection
-  String _selectedRegion = 'Chandigarh, Mohali, Kharar, Zirakpur';
+  String _selectedRegion = 'All Areas (Tricity)';
   final List<String> _regions = const [
-    'Chandigarh, Mohali, Kharar, Zirakpur',
+    'All Areas (Tricity)',
+    'Mohali (SAS Nagar)',
     'Chandigarh (All Sectors)',
-    'Mohali (Phase 1-11 & Aerocity)',
-    'Kharar & Sunny Enclave',
-    'Zirakpur & VIP Road',
     'Panchkula',
+    'Zirakpur & VIP Road',
+    'Kharar & Sunny Enclave',
+    'New Chandigarh',
+    'Pinjore',
+    'Kalka',
+    'Dera Bassi',
   ];
 
   // Search
@@ -120,19 +125,19 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   }
 
   void _navigateToSearch({String? query, String? category}) {
-    FluxNavigate.pushNamed(
-      RouteList.search,
-      arguments: {
-        'search': query ?? _searchController.text.trim(),
-        'category': category,
-        'location': _selectedRegion,
-      },
-      context: context,
-    );
+    final q = query ?? _searchController.text.trim();
+    if (category != null && category.isNotEmpty) {
+      ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value = category;
+    } else {
+      ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value = null;
+    }
+    ZipBizServicesDirectoryScreen.selectedSearchNotifier.value = q.isNotEmpty ? q : null;
+    MainTabControlDelegate.getInstance().changeTab(RouteList.category);
   }
 
   void _navigateToCategory(String categoryName) {
     ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value = categoryName;
+    ZipBizServicesDirectoryScreen.selectedSearchNotifier.value = null;
     MainTabControlDelegate.getInstance().changeTab(RouteList.category);
   }
 
@@ -624,54 +629,77 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
   void _showRegionPicker() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Choose Service Area',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
                 ),
-                const Divider(),
-                ..._regions.map((reg) {
-                  final isSelected = _selectedRegion == reg;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                      color: isSelected ? const Color(0xFFFF6B00) : Colors.grey,
-                      size: 20,
-                    ),
-                    title: Text(
-                      reg,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFF1B1C1C),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Choose Service Area',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    onTap: () {
-                      setState(() => _selectedRegion = reg);
-                      Navigator.pop(context);
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _regions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 52),
+                    itemBuilder: (context, idx) {
+                      final reg = _regions[idx];
+                      final isSelected = _selectedRegion == reg;
+                      return ListTile(
+                        leading: Icon(
+                          isSelected ? Icons.check_circle : Icons.location_on_outlined,
+                          color: isSelected ? const Color(0xFFFF6B00) : Colors.grey,
+                          size: 22,
+                        ),
+                        title: Text(
+                          reg,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFF1B1C1C),
+                          ),
+                        ),
+                        onTap: () {
+                          setState(() => _selectedRegion = reg);
+                          Navigator.pop(context);
+                        },
+                      );
                     },
-                  );
-                }),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1105,29 +1133,39 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                                     ),
                                   ),
                                   SizedBox(
-                                    height: 24,
+                                    height: 22,
                                     child: ElevatedButton(
-                                      onPressed: handleServiceTap,
+                                      onPressed: () {
+                                        final numPrice = double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+                                        ZipBizCartManager.addToCart(
+                                          ZipBizCartItem(
+                                            serviceName: title,
+                                            price: numPrice,
+                                            businessTitle: type == 'maid' ? 'Zipbiz Maid Service' : 'Zipbiz Cleaning Service',
+                                            businessSlug: type == 'maid' ? 'zipbiz-maid-services' : 'zipbiz-cleaning-services',
+                                          ),
+                                          context,
+                                        );
+                                      },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFFFF6B00),
                                         foregroundColor: Colors.white,
                                         elevation: 0,
-                                        minimumSize: const Size(44, 22),
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                        minimumSize: const Size(36, 20),
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
                                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                         alignment: Alignment.center,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(4),
                                         ),
                                       ),
-                                      child: const Center(
-                                        child: Text(
-                                          'Add',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      child: const Text(
+                                        'Add',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          height: 1.0,
                                         ),
                                       ),
                                     ),

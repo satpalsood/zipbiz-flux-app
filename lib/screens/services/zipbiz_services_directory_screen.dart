@@ -10,6 +10,7 @@ import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
 import '../../services/index.dart';
 import '../../widgets/common/zipbiz_header.dart';
+import '../../core/state/zipbiz_bookmark_manager.dart';
 
 class ZipBizBookingAvailability {
   static final ValueNotifier<bool> isAcceptingNotifier = ValueNotifier<bool>(true);
@@ -19,6 +20,8 @@ class ZipBizServicesDirectoryScreen extends StatefulWidget {
   final String? initialCategory;
 
   static final ValueNotifier<String?> selectedCategoryNotifier =
+      ValueNotifier<String?>(null);
+  static final ValueNotifier<String?> selectedSearchNotifier =
       ValueNotifier<String?>(null);
 
   const ZipBizServicesDirectoryScreen({super.key, this.initialCategory});
@@ -31,14 +34,18 @@ class ZipBizServicesDirectoryScreen extends StatefulWidget {
 class _ZipBizServicesDirectoryScreenState
     extends State<ZipBizServicesDirectoryScreen> {
   // Region Selection (matches Home Screen)
-  String _selectedRegion = 'Chandigarh, Mohali, Kharar, Zirakpur';
+  String _selectedRegion = 'All Areas (Tricity)';
   final List<String> _regions = const [
-    'Chandigarh, Mohali, Kharar, Zirakpur',
+    'All Areas (Tricity)',
+    'Mohali (SAS Nagar)',
     'Chandigarh (All Sectors)',
-    'Mohali (Phase 1-11 & Aerocity)',
-    'Kharar & Sunny Enclave',
-    'Zirakpur & VIP Road',
     'Panchkula',
+    'Zirakpur & VIP Road',
+    'Kharar & Sunny Enclave',
+    'New Chandigarh',
+    'Pinjore',
+    'Kalka',
+    'Dera Bassi',
   ];
 
   final TextEditingController _searchController = TextEditingController();
@@ -103,6 +110,8 @@ class _ZipBizServicesDirectoryScreenState
     super.initState();
     ZipBizServicesDirectoryScreen.selectedCategoryNotifier
         .addListener(_onCategoryNotifierChanged);
+    ZipBizServicesDirectoryScreen.selectedSearchNotifier
+        .addListener(_onSearchNotifierChanged);
     ZipBizBookingAvailability.isAcceptingNotifier
         .addListener(_onBookingAvailabilityChanged);
     if (ZipBizServicesDirectoryScreen.selectedCategoryNotifier.value != null) {
@@ -111,6 +120,10 @@ class _ZipBizServicesDirectoryScreenState
     } else {
       _selectedCategory = widget.initialCategory;
     }
+    if (ZipBizServicesDirectoryScreen.selectedSearchNotifier.value != null) {
+      _searchController.text =
+          ZipBizServicesDirectoryScreen.selectedSearchNotifier.value!;
+    }
     _loadServices();
   }
 
@@ -118,10 +131,22 @@ class _ZipBizServicesDirectoryScreenState
   void dispose() {
     ZipBizServicesDirectoryScreen.selectedCategoryNotifier
         .removeListener(_onCategoryNotifierChanged);
+    ZipBizServicesDirectoryScreen.selectedSearchNotifier
+        .removeListener(_onSearchNotifierChanged);
     ZipBizBookingAvailability.isAcceptingNotifier
         .removeListener(_onBookingAvailabilityChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchNotifierChanged() {
+    if (mounted) {
+      setState(() {
+        _searchController.text =
+            ZipBizServicesDirectoryScreen.selectedSearchNotifier.value ?? '';
+      });
+      _loadServices();
+    }
   }
 
   void _onCategoryNotifierChanged() {
@@ -155,7 +180,8 @@ class _ZipBizServicesDirectoryScreenState
             final cSlug = (c.slug ?? '').toLowerCase();
             if (cName == catLower || cSlug == catLower) return true;
             if (catLower.contains('clean') && (cName.contains('clean') || cSlug.contains('clean'))) return true;
-            if (catLower.contains('care') && (cName.contains('care') || cSlug.contains('care'))) return true;
+            if (catLower.contains('care') && (cName.contains('care') || cSlug.contains('care') || cName.contains('giver') || cSlug.contains('giver'))) return true;
+            if (catLower.contains('appliance') && (cName.contains('appliance') || cSlug.contains('appliance') || cName.contains('repair') || cSlug.contains('repair'))) return true;
             if ((catLower.contains('salon') || catLower.contains('beauty')) &&
                 (cName.contains('salon') || cSlug.contains('salon') || cName.contains('beauty') || cSlug.contains('beauty'))) return true;
             if (catLower.contains('electr') && (cName.contains('electr') || cSlug.contains('electr'))) return true;
@@ -218,11 +244,11 @@ class _ZipBizServicesDirectoryScreenState
         } else if (cat.contains('salon') || cat.contains('beauty')) {
           return pCat.contains('salon') || pCat.contains('beauty') || name.contains('salon') || name.contains('beauty') || name.contains('parlour');
         } else if (cat == 'appliance') {
-          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('ac repair') || name.contains('refrigerator') || name.contains('washing machine');
+          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('appliance') || name.contains('repair') || name.contains('ac') || name.contains('refrigerator') || name.contains('washing machine') || name.contains('ro');
         } else if (cat == 'carpenter') {
           return pCat.contains('carpent') || pType.contains('carpent') || name.contains('carpent');
         } else if (cat.contains('care')) {
-          return pCat.contains('care') || pType.contains('care') || name.contains('caregiver') || name.contains('elderly');
+          return pCat.contains('care') || pType.contains('care') || name.contains('care') || name.contains('giver') || name.contains('elderly') || name.contains('nurse');
         } else {
           return pCat == cat || pType == cat || name.contains(cat);
         }
@@ -239,8 +265,8 @@ class _ZipBizServicesDirectoryScreenState
                          searchTxt.contains('chandigarh') ? 'chandigarh' :
                          activeLoc;
 
-    if (!targetLocStr.contains('chandigarh, mohali, kharar') && !targetLocStr.contains('all')) {
-      const cities = ['mohali', 'kharar', 'zirakpur', 'panchkula', 'chandigarh'];
+    if (!targetLocStr.contains('all areas') && !targetLocStr.contains('all locations') && !targetLocStr.contains('tricity')) {
+      const cities = ['mohali', 'kharar', 'zirakpur', 'panchkula', 'chandigarh', 'pinjore', 'kalka', 'dera bassi'];
       String? filterCity;
       for (final c in cities) {
         if (targetLocStr.contains(c)) {
@@ -266,68 +292,108 @@ class _ZipBizServicesDirectoryScreenState
       }
     }
 
+    // 3. Comprehensive Keyword Search Matching
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      list = list.where((p) {
+        final name = (p.name ?? '').toLowerCase();
+        final desc = (p.description ?? '').toLowerCase();
+        final shortDesc = (p.shortDescription ?? '').toLowerCase();
+        final cat = (p.categoryName ?? '').toLowerCase();
+        final type = (p.type ?? '').toLowerCase();
+        final tags = (p.tags ?? []).map((t) => (t.name ?? '').toLowerCase()).join(' ');
+
+        String menuText = '';
+        for (final m in p.metaData) {
+          final k = (m['key'] ?? '').toString();
+          if (k == '_menu' || k == 'menu' || k == 'services') {
+            menuText += ' ${m['value'].toString().toLowerCase()}';
+          }
+        }
+
+        final combined = '$name $desc $shortDesc $cat $type $tags $menuText';
+        return combined.contains(query);
+      }).toList();
+    }
+
     return list;
   }
 
   void _showRegionPicker() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Choose Service Area',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
                 ),
-                const Divider(),
-                ..._regions.map((reg) {
-                  final isSelected = _selectedRegion == reg;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      isSelected
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      color:
-                          isSelected ? const Color(0xFFFF6B00) : Colors.grey,
-                      size: 20,
-                    ),
-                    title: Text(
-                      reg,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected
-                            ? const Color(0xFFFF6B00)
-                            : const Color(0xFF1B1C1C),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Choose Service Area',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    onTap: () {
-                      setState(() => _selectedRegion = reg);
-                      Navigator.pop(context);
-                      _loadServices();
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _regions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 52),
+                    itemBuilder: (context, idx) {
+                      final reg = _regions[idx];
+                      final isSelected = _selectedRegion == reg;
+                      return ListTile(
+                        leading: Icon(
+                          isSelected ? Icons.check_circle : Icons.location_on_outlined,
+                          color: isSelected ? const Color(0xFFFF6B00) : Colors.grey,
+                          size: 22,
+                        ),
+                        title: Text(
+                          reg,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFF1B1C1C),
+                          ),
+                        ),
+                        onTap: () {
+                          setState(() => _selectedRegion = reg);
+                          Navigator.pop(context);
+                          _loadServices();
+                        },
+                      );
                     },
-                  );
-                }),
+                  ),
+                ),
               ],
             ),
           ),
@@ -696,11 +762,17 @@ class _ZipBizServicesDirectoryScreenState
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFF6B00),
                           foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          alignment: Alignment.center,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text('View All Listings'),
+                        child: const Text(
+                          'View All Businesses',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ],
                   ),
@@ -746,11 +818,41 @@ class _ZipBizServicesDirectoryScreenState
       }
     }
 
-    final priceStr = (product.price != null && product.price!.isNotEmpty)
-        ? '₹${product.price}'
-        : (product.regularPrice != null && product.regularPrice!.isNotEmpty)
-            ? '₹${product.regularPrice}'
-            : '₹499';
+    String? minPrice;
+    if (product.price != null && product.price!.isNotEmpty && double.tryParse(product.price!) != null && double.parse(product.price!) > 0) {
+      minPrice = product.price;
+    } else if (product.regularPrice != null && product.regularPrice!.isNotEmpty && double.tryParse(product.regularPrice!) != null && double.parse(product.regularPrice!) > 0) {
+      minPrice = product.regularPrice;
+    } else {
+      for (final m in product.metaData) {
+        final k = (m['key'] ?? '').toString();
+        final v = (m['value'] ?? '').toString();
+        if ((k == '_price_min' || k == 'price_min' || k == '_price' || k == 'min_price') && v.isNotEmpty && v != '0') {
+          minPrice = v;
+          break;
+        }
+      }
+    }
+    if (minPrice == null || minPrice == '0') {
+      final nameLower = (product.name ?? '').toLowerCase();
+      final catLower = (product.categoryName ?? '').toLowerCase();
+      if (nameLower.contains('maid') || catLower.contains('maid')) {
+        minPrice = '199';
+      } else if (nameLower.contains('clean') || catLower.contains('clean')) {
+        minPrice = '399';
+      } else if (nameLower.contains('electr') || catLower.contains('electr')) {
+        minPrice = '149';
+      } else if (nameLower.contains('plumb') || catLower.contains('plumb')) {
+        minPrice = '149';
+      } else if (nameLower.contains('ac') || nameLower.contains('appliance')) {
+        minPrice = '249';
+      } else if (nameLower.contains('salon') || catLower.contains('salon')) {
+        minPrice = '299';
+      } else {
+        minPrice = '199';
+      }
+    }
+    final priceStr = '₹$minPrice';
 
     final rating = (product.averageRating != null && product.averageRating! > 0)
         ? product.averageRating!.toStringAsFixed(1)
@@ -800,7 +902,7 @@ class _ZipBizServicesDirectoryScreenState
                         FluxImage(
                           imageUrl: _getEffectiveImage(product),
                           fit: BoxFit.cover,
-                          errorWidget: _buildImagePlaceholder(),
+                          errorWidget: _buildImagePlaceholder(product),
                         ),
                         // Verified badge on image
                         Positioned(
@@ -830,6 +932,38 @@ class _ZipBizServicesDirectoryScreenState
                                 ),
                               ],
                             ),
+                          ),
+                        ),
+                        // Bookmark Heart Button
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: ValueListenableBuilder<Set<String>>(
+                            valueListenable: ZipBizBookmarkManager.bookmarkedIdsNotifier,
+                            builder: (context, set, _) {
+                              final isBookmarked = set.contains(product.id?.toString() ?? '');
+                              return GestureDetector(
+                                onTap: () {
+                                  final user = Provider.of<UserModel>(context, listen: false).user;
+                                  ZipBizBookmarkManager.toggleBookmark(context, user, product);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.9),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    isBookmarked ? Icons.favorite : Icons.favorite_border,
+                                    size: 13,
+                                    color: isBookmarked ? Colors.red : Colors.grey.shade700,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -1052,14 +1186,15 @@ class _ZipBizServicesDirectoryScreenState
     return 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80';
   }
 
-  Widget _buildImagePlaceholder() {
-    return Container(
-      color: const Color(0xFFF3F4F6),
-      child: const Center(
-        child: Icon(
-          Icons.home_repair_service,
-          color: Color(0xFF9CA3AF),
-          size: 32,
+  Widget _buildImagePlaceholder([Product? product]) {
+    final fallbackUrl = product != null ? _getEffectiveImage(product) : 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80';
+    return Image.network(
+      fallbackUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        color: const Color(0xFFF3F4F6),
+        child: const Center(
+          child: Icon(Icons.home_repair_service, color: Color(0xFF9CA3AF), size: 32),
         ),
       ),
     );

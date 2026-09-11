@@ -746,11 +746,62 @@ class _ZipBizBookingsDashboardScreenState
   }
 
   void _showCancelConfirm(ListingBooking booking) {
+    // 1-hour cancellation check
+    DateTime? serviceDateTime;
+    try {
+      if (booking.bookingDate != null && booking.bookingDate!.isNotEmpty) {
+        serviceDateTime = DateTime.tryParse(booking.bookingDate!);
+      }
+    } catch (_) {}
+
+    if (serviceDateTime != null) {
+      final difference = serviceDateTime.difference(DateTime.now());
+      if (difference.inMinutes < 60) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Cannot Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text(
+              'Appointments can only be cancelled at least 1 hour before the scheduled service time. '
+              'Since your appointment is scheduled soon, please reach out directly to customer support for emergency assistance.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ZipBizColors.primaryContainer,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.headset_mic_outlined, size: 16),
+                label: const Text('Contact Support'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Tools.launchURL('https://wa.me/917009218289?text=${Uri.encodeComponent("Hello ZipBiz Support, I need assistance cancelling booking #ZB-${booking.id ?? booking.orderId ?? ""}")}');
+                },
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Cancel Appointment?'),
-        content: Text('Are you sure you want to cancel booking #ZB-${booking.id ?? booking.orderId ?? ""}? Cancellation is free before provider dispatch.'),
+        content: Text('Are you sure you want to cancel booking #ZB-${booking.id ?? booking.orderId ?? ""}? Cancellation is allowed up to 1 hour before scheduled time.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep Booking')),
           TextButton(
@@ -759,11 +810,24 @@ class _ZipBizBookingsDashboardScreenState
               final user = Provider.of<UserModel>(context, listen: false).user;
               final bId = booking.id ?? booking.orderId;
               if (user != null && bId != null) {
-                await ZipBizApiService().cancelBooking(int.tryParse(bId) ?? 0, user);
-                _loadBookings();
+                try {
+                  await ZipBizApiService().cancelBooking(int.tryParse(bId) ?? 0, user);
+                  _loadBookings();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Booking cancelled successfully'), backgroundColor: Colors.orange),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
               }
             },
-            child: const Text('Confirm Cancel', style: TextStyle(color: Colors.red)),
+            child: const Text('Confirm Cancel', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

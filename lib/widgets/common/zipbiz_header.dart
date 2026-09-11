@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../common/constants.dart';
+import '../../core/state/zipbiz_cart_manager.dart';
+import '../../core/theme/zipbiz_colors.dart';
+import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
+import '../../screens/profile/zipbiz_bookmarks_screen.dart';
 
 class ZipBizLocationState {
   static final ValueNotifier<String> selectedLocation =
-      ValueNotifier<String>('Mohali / Chandigarh');
+      ValueNotifier<String>('Mohali');
 
   static void setLocation(String loc) {
     selectedLocation.value = loc;
@@ -63,13 +68,16 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
     final borderColor = isDark ? Colors.white12 : const Color(0xFFE4E2E1);
     final canShowBack = showBackButton && !_isMainRootScreen(context) && Navigator.canPop(context);
 
+    final userModel = Provider.of<UserModel>(context, listen: false);
+    final user = userModel.user;
+
     return Container(
       color: bgColor,
       child: SafeArea(
         bottom: false,
         child: Container(
           height: 56.0,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: bgColor,
             border: Border(
@@ -83,7 +91,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Left: Back button (if enabled and not on root screens) + ZipBiz Logo
+              // Left: Back button (if enabled) + ZipBiz Logo with left padding
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -101,7 +109,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
                       ),
                     ),
                   Padding(
-                    padding: EdgeInsets.only(left: canShowBack ? 0.0 : 8.0),
+                    padding: EdgeInsets.only(left: canShowBack ? 0.0 : 10.0),
                     child: GestureDetector(
                       onTap: () {},
                       child: Image.asset(
@@ -153,7 +161,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
                             size: 13, color: Color(0xFFFF672D)),
                         const SizedBox(width: 3),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 88),
+                          constraints: const BoxConstraints(maxWidth: 80),
                           child: ValueListenableBuilder<String>(
                             valueListenable:
                                 ZipBizLocationState.selectedLocation,
@@ -181,45 +189,143 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
               else
                 const Spacer(),
 
-              // Right: Notification Bell with Badge
-              if (showNotification)
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.notifications_outlined,
-                          size: 24, color: textColor),
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(6),
-                      onPressed: () {
-                        FluxNavigate.pushNamed(RouteList.notify,
-                            context: context);
-                      },
-                    ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(3.5),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFF672D),
-                          shape: BoxShape.circle,
+              // Right: Notification Bell, Heart (Bookmarks), Cart (with badge), Avatar (Profile)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. Notification Bell
+                  if (showNotification)
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.notifications_outlined,
+                              size: 21, color: textColor),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                          onPressed: () {
+                            FluxNavigate.pushNamed(RouteList.notify,
+                                context: context);
+                          },
                         ),
-                        child: const Text(
-                          '3',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.bold,
-                            height: 1.0,
+                        Positioned(
+                          top: 4,
+                          right: 2,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF672D),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              '3',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                height: 1.0,
+                              ),
+                            ),
                           ),
                         ),
+                      ],
+                    ),
+
+                  // 2. Heart (Bookmarks)
+                  IconButton(
+                    icon: Icon(Icons.favorite_border,
+                        size: 21, color: textColor),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ZipBizBookmarksScreen(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // 3. Cart Icon with Item Badge
+                  ValueListenableBuilder<int>(
+                    valueListenable: ZipBizCartManager.cartCountNotifier,
+                    builder: (context, count, _) {
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.shopping_cart_outlined,
+                                size: 21, color: textColor),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                            onPressed: () {
+                              ZipBizCartManager.showCartModal(context);
+                            },
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              top: 4,
+                              right: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(3.5),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFF672D),
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$count',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.0,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  // 4. Circular Profile Avatar Icon
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 2),
+                    child: InkWell(
+                      onTap: () {
+                        FluxNavigate.pushNamed(RouteList.profile, context: context);
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: ZipBizColors.primaryContainer,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: borderColor, width: 1),
+                          image: (user != null && user.picture != null && user.picture!.isNotEmpty)
+                              ? DecorationImage(
+                                  image: NetworkImage(user.picture!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: (user == null || user.picture == null || user.picture!.isEmpty)
+                            ? const Icon(Icons.person, size: 18, color: Colors.white)
+                            : null,
                       ),
                     ),
-                  ],
-                )
-              else
-                const SizedBox(width: 32),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -230,14 +336,14 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
 
 void showZipBizLocationPicker(BuildContext context) {
   final locations = [
-    'Mohali / Chandigarh',
+    'Mohali',
     'Chandigarh',
-    'Mohali (SAS Nagar)',
     'Panchkula',
     'Zirakpur',
     'Kharar',
     'New Chandigarh',
-    'Pinjore / Kalka',
+    'Pinjore',
+    'Kalka',
     'Dera Bassi',
     'All Locations',
   ];
@@ -300,7 +406,7 @@ void showZipBizLocationPicker(BuildContext context) {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: InkWell(
                 onTap: () {
-                  ZipBizLocationState.setLocation('Mohali / Chandigarh');
+                  ZipBizLocationState.setLocation('Mohali');
                   Navigator.pop(ctx);
                 },
                 borderRadius: BorderRadius.circular(10),

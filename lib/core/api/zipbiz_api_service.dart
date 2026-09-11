@@ -182,12 +182,20 @@ class ZipBizApiService {
     required int bookingId,
     required String action, // 'accept', 'reject', 'start', 'complete'
     String? otp,
+    bool? paymentConfirmed,
   }) async {
     final url = Uri.parse('$_baseUrl/vendor/bookings/$bookingId/$action');
-    final body = (otp != null && otp.isNotEmpty) ? jsonEncode({'otp': otp}) : null;
+    final Map<String, dynamic> bodyMap = {};
+    if (otp != null && otp.isNotEmpty) {
+      bodyMap['otp'] = otp;
+    }
+    if (paymentConfirmed != null) {
+      bodyMap['payment_confirmed'] = paymentConfirmed;
+    }
+    final body = bodyMap.isNotEmpty ? jsonEncode(bodyMap) : null;
     final response = await http.post(url, headers: _getHeaders(user), body: body);
     final data = jsonDecode(response.body);
-    return response.statusCode == 200 && data['success'] == true;
+    return (response.statusCode == 200 || response.statusCode == 201) && data['success'] == true;
   }
 
   /// Vendor: Get earnings report
@@ -378,10 +386,76 @@ class ZipBizApiService {
     final response = await http.post(url, headers: _getHeaders(user), body: jsonEncode(data));
     final res = jsonDecode(response.body);
 
-    if (response.statusCode == 200 && res['success'] == true) {
+    if ((response.statusCode == 200 || response.statusCode == 201) && res['success'] == true) {
       return (res['data'] as Map<String, dynamic>?) ?? {};
     } else {
       throw Exception(res['message'] ?? 'Failed to create coupon');
+    }
+  }
+
+  /// User: Get Bookmarks
+  Future<Map<String, dynamic>> getUserBookmarks(User user) async {
+    final url = Uri.parse('$_baseUrl/user/bookmarks');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load bookmarks');
+    }
+  }
+
+  /// User: Toggle Bookmark
+  Future<Map<String, dynamic>> toggleUserBookmark({
+    required User user,
+    required int listingId,
+  }) async {
+    final url = Uri.parse('$_baseUrl/user/bookmarks/toggle');
+    final response = await http.post(
+      url,
+      headers: _getHeaders(user),
+      body: jsonEncode({'listing_id': listingId}),
+    );
+    final data = jsonDecode(response.body);
+
+    if ((response.statusCode == 200 || response.statusCode == 201) && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to toggle bookmark');
+    }
+  }
+
+  /// User: Get Profile
+  Future<Map<String, dynamic>> getUserProfile(User user) async {
+    final url = Uri.parse('$_baseUrl/user/profile');
+    final response = await http.get(url, headers: _getHeaders(user));
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load profile');
+    }
+  }
+
+  /// User: Update Profile & Password
+  Future<Map<String, dynamic>> updateUserProfile({
+    required User user,
+    required Map<String, dynamic> data,
+  }) async {
+    final url = Uri.parse('$_baseUrl/user/profile');
+    final response = await http.post(
+      url,
+      headers: _getHeaders(user),
+      body: jsonEncode(data),
+    );
+    final res = jsonDecode(response.body);
+
+    if ((response.statusCode == 200 || response.statusCode == 201) && res['success'] == true) {
+      return (res['data'] as Map<String, dynamic>?) ?? {};
+    } else {
+      throw Exception(res['message'] ?? 'Failed to update profile');
     }
   }
 

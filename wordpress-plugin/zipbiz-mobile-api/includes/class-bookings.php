@@ -59,6 +59,32 @@ class ZipBiz_Bookings {
             'callback' => array($this, 'get_availability'),
             'permission_callback' => '__return_true',
         ));
+
+        // User Bookmarks
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/user/bookmarks', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_user_bookmarks'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/user/bookmarks/toggle', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'toggle_user_bookmark'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        // User Profile Management & Password Change
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/user/profile', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_user_profile'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
+
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/user/profile', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'update_user_profile'),
+            'permission_callback' => array($this, 'check_auth'),
+        ));
     }
 
     public function check_auth($request) {
@@ -556,6 +582,14 @@ class ZipBiz_Bookings {
             return ZipBiz_REST_API::error_response('FORBIDDEN', 'Cannot cancel this booking', 403);
         }
 
+        // Customer cancellation restriction: must be at least 1 hour before scheduled start
+        if ($row['bookings_author'] == $user->ID && !current_user_can('manage_options')) {
+            $start_timestamp = strtotime($row['date_start']);
+            if ($start_timestamp && ($start_timestamp - time() < 3600)) {
+                return ZipBiz_REST_API::error_response('CANNOT_CANCEL', 'Bookings can only be cancelled up to 1 hour before scheduled start time. Please contact support.', 400);
+            }
+        }
+
         if (class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
             Listeo_Core_Bookings_Calendar::set_booking_status($booking_id, 'cancelled');
         } else {
@@ -583,13 +617,6 @@ class ZipBiz_Bookings {
         if (!$user_id) {
             $user_id = intval($request->get_header('X-User-ID'));
         }
-        if (!$user_id) {
-            $user = ZipBiz_REST_API::authenticate_user($request);
-            if (!is_wp_error($user) && $user && $user->ID) {
-                $user_id = $user->ID;
-            }
-        }
-
         if (!$user_id) {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
@@ -628,9 +655,13 @@ class ZipBiz_Bookings {
                     ? $raw_comment
                     : json_encode($comment_data ?: array('adults' => '1', 'service' => array()));
 
+                $b_id = intval($r['id']);
+                $start_otp = $comment_data['start_otp'] ?? strval((($b_id * 31 + 1729) % 9000) + 1000);
+                $finish_otp = $comment_data['finish_otp'] ?? strval((($b_id * 47 + 2468) % 9000) + 1000);
+
                 $items[] = array_merge($comment_data, array(
-                    'id'             => intval($r['id']),
-                    'booking_id'     => intval($r['id']),
+                    'id'             => $b_id,
+                    'booking_id'     => $b_id,
                     'order_id'       => $r['order_id'] ?? 0,
                     'status'         => $r['status'],
                     'price'          => strval($r['price']),
@@ -644,6 +675,8 @@ class ZipBiz_Bookings {
                     'listing_title'  => $listing ? $listing->post_title : 'Home Service',
                     'featured_image' => $feat_img,
                     'comment'        => $comment_str,
+                    'start_otp'      => $start_otp,
+                    'finish_otp'     => $finish_otp,
                 ));
             }
         } else {
@@ -742,5 +775,196 @@ class ZipBiz_Bookings {
             'has_confirmed' => !empty($posts),
             'booking_id'    => !empty($posts) ? $posts[0] : null,
         ));
+    }
+
+    /**
+     * Get user bookmarks
+     */
+    public function get_user_bookmarks($request) {
+        $user = wp_get_current_user();
+        if (!$user || !$user->ID) {
+            return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'Please log in to view bookmarks', 401);
+        }
+
+        $bookmark_ids = get_user_meta($user->ID, '_zipbiz_user_bookmarks', true) ?: array();
+        if (!is_array($bookmark_ids)) {
+            $bookmark_ids = array();
+        }
+
+        $items = array();
+        if (!empty($bookmark_ids)) {
+            $posts = get_posts(array(
+                'post_type'      => 'listing',
+                'post__in'       => array_map('intval', $bookmark_ids),
+                'posts_per_page' => 100,
+                'post_status'    => 'publish',
+            ));
+
+            foreach ($posts as $p) {
+                $feat_img = get_the_post_thumbnail_url($p->ID, 'medium') ?: (get_post_meta($p->ID, '_featured_image_url', true) ?: '');
+                $rating = floatval(get_post_meta($p->ID, '_overall_rating', true) ?: 4.9);
+                $price = get_post_meta($p->ID, '_pricing', true) ?: (get_post_meta($p->ID, '_price', true) ?: '399');
+                $tagline = get_post_meta($p->ID, '_tagline', true) ?: '';
+                $address = get_post_meta($p->ID, '_friendly_address', true) ?: (get_post_meta($p->ID, '_address', true) ?: 'Mohali / Chandigarh');
+
+                $items[] = array(
+                    'id'             => $p->ID,
+                    'title'          => $p->post_title,
+                    'featured_image' => $feat_img,
+                    'rating'         => $rating,
+                    'price'          => $price,
+                    'tagline'        => $tagline,
+                    'address'        => $address,
+                );
+            }
+        }
+
+        return ZipBiz_REST_API::success_response(array(
+            'bookmarks' => array_values(array_map('strval', $bookmark_ids)),
+            'items'     => $items,
+        ));
+    }
+
+    /**
+     * Toggle user bookmark
+     */
+    public function toggle_user_bookmark($request) {
+        $user = wp_get_current_user();
+        if (!$user || !$user->ID) {
+            return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'Please log in to bookmark businesses', 401);
+        }
+
+        $params = $request->get_json_params() ?: array();
+        $listing_id = intval($params['listing_id'] ?? ($request->get_param('listing_id') ?? 0));
+        if ($listing_id <= 0) {
+            return ZipBiz_REST_API::error_response('INVALID_ID', 'Valid business ID is required', 400);
+        }
+
+        $bookmark_ids = get_user_meta($user->ID, '_zipbiz_user_bookmarks', true) ?: array();
+        if (!is_array($bookmark_ids)) {
+            $bookmark_ids = array();
+        }
+
+        $str_id = strval($listing_id);
+        $int_id = intval($listing_id);
+        $is_bookmarked = in_array($int_id, $bookmark_ids) || in_array($str_id, $bookmark_ids);
+
+        $current_count = intval(get_post_meta($listing_id, '_bookmark_count', true) ?: get_post_meta($listing_id, '_bookmarks_count', true) ?: 0);
+
+        if ($is_bookmarked) {
+            $bookmark_ids = array_values(array_filter($bookmark_ids, function($v) use ($int_id, $str_id) {
+                return $v != $int_id && $v != $str_id;
+            }));
+            $current_count = max(0, $current_count - 1);
+            $new_status = false;
+            $msg = 'Bookmark removed';
+        } else {
+            $bookmark_ids[] = $int_id;
+            $current_count += 1;
+            $new_status = true;
+            $msg = 'Bookmark added';
+        }
+
+        update_user_meta($user->ID, '_zipbiz_user_bookmarks', $bookmark_ids);
+        update_post_meta($listing_id, '_bookmark_count', $current_count);
+        update_post_meta($listing_id, '_bookmarks_count', $current_count);
+
+        return ZipBiz_REST_API::success_response(array(
+            'listing_id'    => $listing_id,
+            'is_bookmarked' => $new_status,
+            'total_count'   => $current_count,
+            'bookmarks'     => array_values(array_map('strval', $bookmark_ids)),
+        ), $msg);
+    }
+
+    /**
+     * Get user profile
+     */
+    public function get_user_profile($request) {
+        $user = wp_get_current_user();
+        if (!$user || !$user->ID) {
+            return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'Please log in to view profile', 401);
+        }
+
+        $phone = get_user_meta($user->ID, 'billing_phone', true) ?: (get_user_meta($user->ID, 'phone', true) ?: '');
+        return ZipBiz_REST_API::success_response(array(
+            'id'           => $user->ID,
+            'username'     => $user->user_login,
+            'display_name' => $user->display_name,
+            'first_name'   => $user->first_name,
+            'last_name'    => $user->last_name,
+            'email'        => $user->user_email,
+            'phone'        => $phone,
+        ));
+    }
+
+    /**
+     * Update user profile & change password
+     */
+    public function update_user_profile($request) {
+        $user = wp_get_current_user();
+        if (!$user || !$user->ID) {
+            return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'Please log in to update profile', 401);
+        }
+
+        $params = $request->get_json_params() ?: array();
+
+        $userdata = array('ID' => $user->ID);
+        if (isset($params['first_name'])) {
+            $userdata['first_name'] = sanitize_text_field($params['first_name']);
+        }
+        if (isset($params['last_name'])) {
+            $userdata['last_name'] = sanitize_text_field($params['last_name']);
+        }
+        if (isset($params['display_name'])) {
+            $userdata['display_name'] = sanitize_text_field($params['display_name']);
+        } elseif (isset($params['first_name'])) {
+            $userdata['display_name'] = trim(sanitize_text_field(($params['first_name'] ?? '') . ' ' . ($params['last_name'] ?? '')));
+        }
+        if (!empty($params['email'])) {
+            $email = sanitize_email($params['email']);
+            if (is_email($email)) {
+                $email_exists = email_exists($email);
+                if ($email_exists && $email_exists != $user->ID) {
+                    return ZipBiz_REST_API::error_response('EMAIL_EXISTS', 'Email address is already in use by another account.', 400);
+                }
+                $userdata['user_email'] = $email;
+            }
+        }
+
+        // Handle password change if requested
+        if (!empty($params['new_password'])) {
+            $current_pw = $params['current_password'] ?? '';
+            if (empty($current_pw)) {
+                return ZipBiz_REST_API::error_response('CURRENT_PW_REQUIRED', 'Current password is required to set a new password.', 400);
+            }
+            if (!wp_check_password($current_pw, $user->user_pass, $user->ID)) {
+                return ZipBiz_REST_API::error_response('INVALID_CURRENT_PW', 'Current password entered is incorrect.', 400);
+            }
+            $userdata['user_pass'] = $params['new_password'];
+        }
+
+        $res = wp_update_user($userdata);
+        if (is_wp_error($res)) {
+            return ZipBiz_REST_API::error_response('UPDATE_FAILED', $res->get_error_message(), 400);
+        }
+
+        // Phone meta
+        if (isset($params['phone'])) {
+            $phone = sanitize_text_field($params['phone']);
+            update_user_meta($user->ID, 'billing_phone', $phone);
+            update_user_meta($user->ID, 'phone', $phone);
+        }
+
+        $updated_user = get_user_by('id', $user->ID);
+        return ZipBiz_REST_API::success_response(array(
+            'id'           => $updated_user->ID,
+            'username'     => $updated_user->user_login,
+            'display_name' => $updated_user->display_name,
+            'first_name'   => $updated_user->first_name,
+            'last_name'    => $updated_user->last_name,
+            'email'        => $updated_user->user_email,
+            'phone'        => get_user_meta($updated_user->ID, 'billing_phone', true),
+        ), 'Profile updated successfully');
     }
 }

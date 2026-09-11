@@ -1,3 +1,5 @@
+import '../../core/state/zipbiz_bookmark_manager.dart';
+import '../services/zipbiz_services_directory_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../common/config.dart';
@@ -196,6 +198,17 @@ class _ZipBizProviderDetailScreenState
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
+    bool isAccepting = ZipBizBookingAvailability.isAcceptingNotifier.value;
+    for (final m in p.metaData) {
+      final k = (m['key'] ?? '').toString();
+      final v = m['value'];
+      if (k == '_booking_status' || k == 'booking_status') {
+        if (v == false || v == 'off' || v == '0' || v == 0) isAccepting = false;
+      }
+      if (k == '_is_offline' || k == 'is_offline' || k == '_pause_bookings') {
+        if (v == true || v == 'on' || v == '1' || v == 1) isAccepting = false;
+      }
+    }
     final startsAt = (p.price != null && p.price!.isNotEmpty) ? '₹${p.price}' : '₹499';
 
     return Scaffold(
@@ -229,6 +242,28 @@ class _ZipBizProviderDetailScreenState
                   ),
                 ),
 
+                if (!isAccepting)
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.pause_circle_outline, color: Colors.red.shade700, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Currently Paused / Offline: This business is not taking new bookings at the moment.',
+                            style: TextStyle(color: Colors.red.shade800, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 // Hero Image & Gallery
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -499,7 +534,7 @@ class _ZipBizProviderDetailScreenState
                     final additionalFeeLabel = _getMeta('_additional_fee_label');
                     final additionalFeeAmount = _getMeta('_additional_fee_amount');
                     final inspectionFee = _getMeta('_inspection_fee');
-                    final hasAdditionalFees = visitingFee != null || inspectionFee != null || (additionalFeeLabel != null && additionalFeeAmount != null);
+                    final hasAdditionalFees = inspectionFee != null || (additionalFeeLabel != null && additionalFeeAmount != null);
 
                     if (!hasAdditionalFees) return const SizedBox.shrink();
 
@@ -515,22 +550,7 @@ class _ZipBizProviderDetailScreenState
                           child: ZipBizCard(
                             child: Column(
                               children: [
-                                if (visitingFee != null)
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Row(
-                                        children: [
-                                          Icon(Icons.directions_car, size: 18, color: ZipBizColors.primaryContainer),
-                                          SizedBox(width: 8),
-                                          Text('Visiting Fee', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                        ],
-                                      ),
-                                      Text('₹$visitingFee', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: ZipBizColors.primary)),
-                                    ],
-                                  ),
-                                if (visitingFee != null && (inspectionFee != null || additionalFeeLabel != null))
-                                  const Divider(height: 16),
+
                                 if (inspectionFee != null)
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -546,7 +566,7 @@ class _ZipBizProviderDetailScreenState
                                     ],
                                   ),
                                 if (additionalFeeLabel != null && additionalFeeAmount != null) ...[
-                                  if (visitingFee != null || inspectionFee != null)
+                                  if (inspectionFee != null)
                                     const Divider(height: 16),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -645,12 +665,13 @@ class _ZipBizProviderDetailScreenState
                   // Book Service Button
                   Expanded(
                     child: ZipBizButton(
-                      text: 'Book Service',
-                      icon: Icons.calendar_month,
+                      text: isAccepting ? 'Book Service' : 'Currently Offline',
+                      icon: isAccepting ? Icons.calendar_month : Icons.block,
                       height: 50,
                       borderRadius: 12,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      onPressed: () {
+                      backgroundColor: isAccepting ? ZipBizColors.primaryContainer : Colors.grey.shade400,
+                      onPressed: isAccepting ? () {
                         final selectedItems = _packages
                             .where((pkg) => _selectedPackageNames.contains(pkg['name']))
                             .toList();
@@ -665,7 +686,7 @@ class _ZipBizProviderDetailScreenState
                             ),
                           ),
                         );
-                      },
+                      } : null,
                     ),
                   ),
                 ],

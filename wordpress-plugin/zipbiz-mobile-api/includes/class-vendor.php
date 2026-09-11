@@ -333,9 +333,13 @@ class ZipBiz_Vendor {
             $listing = get_post($r['listing_id']);
             $comment_data = json_decode($r['comment'], true) ?: array();
             $customer = get_user_by('id', $r['bookings_author']);
+            $b_id = intval($r['id']);
+            $start_otp = $comment_data['start_otp'] ?? strval((($b_id * 31 + 1729) % 9000) + 1000);
+            $finish_otp = $comment_data['finish_otp'] ?? strval((($b_id * 47 + 2468) % 9000) + 1000);
 
             $items[] = array_merge($comment_data, array(
-                'booking_id'     => intval($r['id']),
+                'id'             => $b_id,
+                'booking_id'     => $b_id,
                 'status'         => $r['status'],
                 'price'          => floatval($r['price']),
                 'created'        => $r['created'],
@@ -346,6 +350,8 @@ class ZipBiz_Vendor {
                 'customer_id'    => intval($r['bookings_author']),
                 'customer_name'  => $comment_data['customer_name'] ?? ($customer ? $customer->display_name : 'Customer'),
                 'customer_phone' => $comment_data['customer_phone'] ?? ($customer ? get_user_meta($customer->ID, 'billing_phone', true) : ''),
+                'start_otp'      => $start_otp,
+                'finish_otp'     => $finish_otp,
             ));
         }
 
@@ -420,7 +426,7 @@ class ZipBiz_Vendor {
     public function start_booking($request) {
         $user = wp_get_current_user();
         $booking_id = intval($request['id']);
-        $otp = sanitize_text_field($request->get_param('otp') ?: '');
+        $otp = trim(sanitize_text_field($request->get_param('otp') ?: ''));
         if (!empty($otp)) {
             $expected_start_otp = strval((($booking_id * 31 + 1729) % 9000) + 1000);
             if ($otp !== $expected_start_otp) {
@@ -440,11 +446,23 @@ class ZipBiz_Vendor {
     public function complete_booking($request) {
         $user = wp_get_current_user();
         $booking_id = intval($request['id']);
-        $otp = sanitize_text_field($request->get_param('otp') ?: '');
+        $otp = trim(sanitize_text_field($request->get_param('otp') ?: ''));
         if (!empty($otp)) {
             $expected_finish_otp = strval((($booking_id * 47 + 2468) % 9000) + 1000);
             if ($otp !== $expected_finish_otp) {
                 return ZipBiz_REST_API::error_response('INVALID_OTP', 'Invalid Finish Service OTP. Please ask customer for correct 4-digit OTP.', 400);
+            }
+        }
+
+        // Sync payment & completion with WooCommerce order if attached
+        global $wpdb;
+        $table_name = ZipBiz_Bookings::get_bookings_table();
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $booking_id), ARRAY_A);
+        if ($row && !empty($row['order_id']) && intval($row['order_id']) > 0 && function_exists('wc_get_order')) {
+            $order = wc_get_order(intval($row['order_id']));
+            if ($order) {
+                $order->payment_complete();
+                $order->update_status('completed', 'Order marked completed and verified by vendor via ZipBiz App.');
             }
         }
 
@@ -1189,7 +1207,7 @@ class ZipBiz_Vendor {
         $coupons[] = $new_coupon;
         update_user_meta($user->ID, '_zipbiz_vendor_coupons', $coupons);
 
-        return ZipBiz_REST_API::success_response($new_coupon, 'Coupon created successfully', 201);
+        return ZipBiz_REST_API::success_response($new_coupon, 'Coupon created successfully', 200);
     }
 
     /**

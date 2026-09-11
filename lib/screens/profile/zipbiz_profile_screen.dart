@@ -16,6 +16,8 @@ import '../../widgets/common/zipbiz_badge.dart';
 import '../../widgets/common/zipbiz_button.dart';
 import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_header.dart';
+import 'zipbiz_bookmarks_screen.dart';
+import 'zipbiz_edit_profile_screen.dart';
 
 class ZipBizProfileScreen extends StatefulWidget {
   const ZipBizProfileScreen({super.key});
@@ -44,65 +46,74 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
             // User Header Profile Card
             ZipBizCard(
               child: isLoggedIn
-                  ? Row(
-                      children: [
-                        Stack(
-                          children: [
-                            CircleAvatar(
-                              radius: 32,
-                              backgroundColor: ZipBizColors.primaryContainer,
-                              backgroundImage: (user.picture != null && user.picture!.isNotEmpty)
-                                  ? NetworkImage(user.picture!)
-                                  : null,
-                              child: (user.picture == null || user.picture!.isEmpty)
-                                  ? const Icon(Icons.person, size: 36, color: Colors.white)
-                                  : null,
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: ZipBizColors.primaryContainer,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.edit, size: 12, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  ? InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ZipBizEditProfileScreen()),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          Stack(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      user.fullName.isNotEmpty ? user.fullName : (user.username ?? 'ZipBiz User'),
-                                      style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18),
-                                    ),
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor: ZipBizColors.primaryContainer,
+                                backgroundImage: (user.picture != null && user.picture!.isNotEmpty)
+                                    ? NetworkImage(user.picture!)
+                                    : null,
+                                child: (user.picture == null || user.picture!.isEmpty)
+                                    ? const Icon(Icons.person, size: 36, color: Colors.white)
+                                    : null,
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: ZipBizColors.primaryContainer,
+                                    shape: BoxShape.circle,
                                   ),
-                                  const Icon(Icons.verified, size: 18, color: ZipBizColors.statusOpen),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                user.phoneNumber?.isNotEmpty == true ? user.phoneNumber! : '+91 98765 43210',
-                                style: ZipBizTypography.bodySmall,
-                              ),
-                              Text(
-                                user.email ?? 'user@zipbiz.in',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: ZipBizTypography.bodySmall,
+                                  child: const Icon(Icons.edit, size: 12, color: Colors.white),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        user.fullName.isNotEmpty ? user.fullName : (user.username ?? 'ZipBiz User'),
+                                        style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18),
+                                      ),
+                                    ),
+                                    const Icon(Icons.verified, size: 18, color: ZipBizColors.statusOpen),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  user.phoneNumber?.isNotEmpty == true ? user.phoneNumber! : '+91 98765 43210',
+                                  style: ZipBizTypography.bodySmall,
+                                ),
+                                Text(
+                                  user.email ?? 'user@zipbiz.in',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: ZipBizTypography.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: Colors.grey),
+                        ],
+                      ),
                     )
                   : Column(
                       children: [
@@ -180,6 +191,28 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
+                  if (isLoggedIn) ...[
+                    _buildListTile(
+                      Icons.person_outline,
+                      'My Profile',
+                      'Manage name, phone, email & change password',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ZipBizEditProfileScreen()),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                  ],
+                  _buildListTile(
+                    Icons.bookmark_border,
+                    'My Bookmarks',
+                    'Saved services & favorite businesses',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ZipBizBookmarksScreen()),
+                    ),
+                  ),
+                  const Divider(height: 1),
                   _buildListTile(
                     Icons.receipt_long,
                     'My Bookings & Orders',

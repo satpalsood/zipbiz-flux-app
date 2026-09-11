@@ -15,7 +15,6 @@ import '../../widgets/common/zipbiz_button.dart';
 import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_header.dart';
 import '../booking/zipbiz_booking_flow_screen.dart';
-import '../../vendor/messages/zipbiz_chat_detail_screen.dart';
 
 class ZipBizProviderDetailScreen extends StatefulWidget {
   final Product product;
@@ -642,54 +641,7 @@ class _ZipBizProviderDetailScreenState
                       Text('₹${_totalSelectedPrice.toStringAsFixed(0)}', style: ZipBizTypography.headlineMedium.copyWith(color: ZipBizColors.primary, fontWeight: FontWeight.bold, fontSize: 18)),
                     ],
                   ),
-                  const SizedBox(width: 12),
-                  // Message Pro Button (Unlocked only once customer has a booked & confirmed order)
-                  if (_hasConfirmedBooking)
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: ZipBizColors.primaryContainer),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: const Icon(Icons.chat_bubble_outline, size: 16, color: ZipBizColors.primaryContainer),
-                      label: const Text('Chat', style: TextStyle(color: ZipBizColors.primaryContainer, fontWeight: FontWeight.bold)),
-                      onPressed: () {
-                        final vendorId = int.tryParse(p.id ?? '1') ?? 1;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ZipBizChatDetailScreen(
-                              recipientId: vendorId,
-                              recipientName: p.name ?? 'Vendor',
-                              listingTitle: p.name,
-                              listingId: int.tryParse(p.id ?? '0'),
-                            ),
-                          ),
-                        );
-                      },
-                    )
-                  else
-                    Tooltip(
-                      message: 'Chat unlocks once the vendor approves your booking',
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey.shade300),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: Icon(Icons.lock_outline, size: 16, color: Colors.grey.shade400),
-                        label: Text('Chat', style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Direct chat unlocks once your booking request is accepted by the pro.'),
-                              duration: Duration(seconds: 3),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 16),
                   // Book Service Button
                   Expanded(
                     child: ZipBizButton(

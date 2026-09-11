@@ -339,8 +339,26 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final taxAndFee = widget.totalPrice * 0.05;
-    final grandTotal = widget.totalPrice + taxAndFee;
+    final customFeeMeta = widget.product.metaData.firstWhere(
+      (m) =>
+          m['key'] == '_additional_fee_amount' ||
+          m['key'] == 'additional_fee_amount' ||
+          m['key'] == '_visiting_fee',
+      orElse: () => {},
+    );
+    final customFeeLabelMeta = widget.product.metaData.firstWhere(
+      (m) =>
+          m['key'] == '_additional_fee_label' ||
+          m['key'] == 'additional_fee_label',
+      orElse: () => {},
+    );
+    final customFee =
+        double.tryParse(customFeeMeta['value']?.toString() ?? '0') ?? 0.0;
+    final customFeeLabel =
+        customFeeLabelMeta['value']?.toString().isNotEmpty == true
+            ? customFeeLabelMeta['value'].toString()
+            : 'Service & Handling Fee';
+    final grandTotal = widget.totalPrice + customFee;
 
     return Scaffold(
       backgroundColor: ZipBizColors.surface,
@@ -792,14 +810,16 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
                               Text('₹${widget.totalPrice.toStringAsFixed(0)}', style: ZipBizTypography.labelLarge),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Platform & Insurance Fee (5%)', style: ZipBizTypography.bodySmall),
-                              Text('₹${taxAndFee.toStringAsFixed(0)}', style: ZipBizTypography.labelLarge),
-                            ],
-                          ),
+                          if (customFee > 0) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(customFeeLabel, style: ZipBizTypography.bodySmall),
+                                Text('₹${customFee.toStringAsFixed(0)}', style: ZipBizTypography.labelLarge),
+                              ],
+                            ),
+                          ],
                           const Divider(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

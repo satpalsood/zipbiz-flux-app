@@ -10,8 +10,8 @@ class ConfigChat {
   final IconConfig iconConfig;
 
   const ConfigChat({
-    this.enableSmartChat = true,
-    this.enableVendorChat = true,
+    this.enableSmartChat = false,
+    this.enableVendorChat = false,
     this.showOnScreens = const [],
     this.hideOnScreens = const [],
     this.version = '2',
@@ -21,8 +21,8 @@ class ConfigChat {
 
   factory ConfigChat.fromJson(Map json) {
     return ConfigChat(
-      enableSmartChat: json['EnableSmartChat'] ?? true,
-      enableVendorChat: json['enableVendorChat'] ?? true,
+      enableSmartChat: json['EnableSmartChat'] ?? false,
+      enableVendorChat: json['enableVendorChat'] ?? false,
       showOnScreens: List<String>.from(json['showOnScreens'] ?? []),
       hideOnScreens: List<String>.from(json['hideOnScreens'] ?? []),
       version: json['version'] ?? '2',

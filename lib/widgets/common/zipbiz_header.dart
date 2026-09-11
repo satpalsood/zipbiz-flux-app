@@ -32,9 +32,14 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
 
   bool _isMainRootScreen(BuildContext context) {
     final route = ModalRoute.of(context);
-    final routeName = route?.settings.name;
-    if (routeName == null ||
-        routeName == RouteList.home ||
+    if (route == null || route.isFirst) {
+      return true;
+    }
+    final routeName = route.settings.name;
+    if (routeName == null) {
+      return false;
+    }
+    if (routeName == RouteList.home ||
         routeName == RouteList.category ||
         routeName == RouteList.bookingHistory ||
         routeName == RouteList.profile ||
@@ -43,7 +48,7 @@ class ZipBizTopHeader extends StatelessWidget implements PreferredSizeWidget {
         routeName == '/category' ||
         routeName == '/booking-history' ||
         routeName == '/profile') {
-      return true;
+      return route.isFirst;
     }
     return false;
   }

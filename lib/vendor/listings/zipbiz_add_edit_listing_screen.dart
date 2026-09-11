@@ -88,9 +88,9 @@ class _ZipBizAddEditListingScreenState
   bool _bookingEnabled = true;
   bool _slotsEnabled = true;
   int _slotLimit = 5;
-  int _slotInterval = 1; // 1 or 2 hours
-  final _visitingFeeController = TextEditingController(text: '149');
-  final _inspectionFeeController = TextEditingController(text: '199');
+  double _slotInterval = 1.0; // 0.5 (30 mins), 1, 2, 3, 4, 5 hours
+  final _visitingFeeController = TextEditingController(text: '0');
+  final _inspectionFeeController = TextEditingController(text: '0');
   final _additionalFeeLabelController = TextEditingController();
   final _additionalFeeAmountController = TextEditingController();
   final _minBookingValueController = TextEditingController();
@@ -107,29 +107,27 @@ class _ZipBizAddEditListingScreenState
     'Sunday',
   ];
 
+  String _formatSlotTime(int totalMinutes) {
+    int hours = (totalMinutes ~/ 60) % 24;
+    final mins = totalMinutes % 60;
+    final ampm = hours >= 12 ? 'PM' : 'AM';
+    if (hours > 12) hours -= 12;
+    if (hours == 0) hours = 12;
+    final hStr = hours.toString().padLeft(2, '0');
+    final mStr = mins.toString().padLeft(2, '0');
+    return '$hStr:$mStr $ampm';
+  }
+
   void _generateDefaultSlotsForDay(int dayIdx) {
     final slots = <String>[];
-    if (_slotInterval == 2) {
-      slots.addAll([
-        '09:00 AM - 11:00 AM|$_slotLimit',
-        '11:00 AM - 01:00 PM|$_slotLimit',
-        '02:00 PM - 04:00 PM|$_slotLimit',
-        '04:00 PM - 06:00 PM|$_slotLimit',
-        '06:00 PM - 08:00 PM|$_slotLimit',
-      ]);
-    } else {
-      slots.addAll([
-        '09:00 AM - 10:00 AM|$_slotLimit',
-        '10:00 AM - 11:00 AM|$_slotLimit',
-        '11:00 AM - 12:00 PM|$_slotLimit',
-        '12:00 PM - 01:00 PM|$_slotLimit',
-        '02:00 PM - 03:00 PM|$_slotLimit',
-        '03:00 PM - 04:00 PM|$_slotLimit',
-        '04:00 PM - 05:00 PM|$_slotLimit',
-        '05:00 PM - 06:00 PM|$_slotLimit',
-        '06:00 PM - 07:00 PM|$_slotLimit',
-        '07:00 PM - 08:00 PM|$_slotLimit',
-      ]);
+    final step = (_slotInterval * 60).round();
+    if (step <= 0) return;
+
+    // Standard business hours: 09:00 AM (540 mins) to 08:00 PM (1200 mins)
+    for (int startMin = 9 * 60; startMin + step <= 20 * 60; startMin += step) {
+      final startStr = _formatSlotTime(startMin);
+      final endStr = _formatSlotTime(startMin + step);
+      slots.add('$startStr - $endStr|$_slotLimit');
     }
     _daySlots[dayIdx] = slots;
   }
@@ -316,7 +314,7 @@ class _ZipBizAddEditListingScreenState
     _websiteController.text = item['website'] ?? '';
     _visitingFeeController.text = '${item['visiting_fee'] ?? '149'}';
     _inspectionFeeController.text = '${item['inspection_fee'] ?? '199'}';
-    _slotInterval = int.tryParse('${item['slot_interval']}') ?? 1;
+    _slotInterval = double.tryParse('${item['slot_interval']}') ?? 1.0;
     _additionalFeeLabelController.text = item['additional_fee_label'] ?? '';
     _additionalFeeAmountController.text = item['additional_fee_amount'] != null ? '${item['additional_fee_amount']}' : '';
     _minBookingValueController.text = '${item['min_booking_value'] ?? item['_min_booking_value'] ?? ''}';
@@ -1589,18 +1587,22 @@ class _ZipBizAddEditListingScreenState
                   ],
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: _slotInterval,
+                DropdownButtonFormField<double>(
+                  value: [0.5, 1.0, 2.0, 3.0, 4.0, 5.0].contains(_slotInterval) ? _slotInterval : 1.0,
                   decoration: const InputDecoration(
                     labelText: 'Slot Duration / Interval',
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 1, child: Text('1 Hour Interval (e.g. 09:00 - 10:00)')),
-                    DropdownMenuItem(value: 2, child: Text('2 Hours Interval (e.g. 09:00 - 11:00)')),
+                    DropdownMenuItem(value: 0.5, child: Text('30 Minutes (0.5 hr)')),
+                    DropdownMenuItem(value: 1.0, child: Text('1 Hour Interval')),
+                    DropdownMenuItem(value: 2.0, child: Text('2 Hours Interval')),
+                    DropdownMenuItem(value: 3.0, child: Text('3 Hours Interval')),
+                    DropdownMenuItem(value: 4.0, child: Text('4 Hours Interval')),
+                    DropdownMenuItem(value: 5.0, child: Text('5 Hours Interval')),
                   ],
-                  onChanged: (val) => setState(() => _slotInterval = val ?? 1),
+                  onChanged: (val) => setState(() => _slotInterval = val ?? 1.0),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -1713,34 +1715,6 @@ class _ZipBizAddEditListingScreenState
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _visitingFeeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Visiting Fee (₹)',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _inspectionFeeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Inspection Fee (₹)',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
         Row(
           children: [
             Expanded(
@@ -1930,12 +1904,10 @@ class _ZipBizAddEditListingScreenState
               if (widget.initialListing == null && _selectedPackageName != null)
                 _buildReviewRow('Subscription Plan', _selectedPackageName!),
               _buildReviewRow('Address', _friendlyAddressController.text.isNotEmpty ? _friendlyAddressController.text : _addressController.text),
-              _buildReviewRow('Visiting Fee', '₹${_visitingFeeController.text}'),
-              _buildReviewRow('Inspection Fee', '₹${_inspectionFeeController.text}'),
               if (_additionalFeeLabelController.text.isNotEmpty)
                 _buildReviewRow(_additionalFeeLabelController.text, '₹${_additionalFeeAmountController.text}'),
               _buildReviewRow('Services Added', '${_menuServices.length} packages'),
-              _buildReviewRow('Slot Interval', '$_slotInterval Hour${_slotInterval > 1 ? "s" : ""}'),
+              _buildReviewRow('Slot Interval', _slotInterval == 0.5 ? '30 Mins' : '${_slotInterval.toStringAsFixed(_slotInterval.truncateToDouble() == _slotInterval ? 0 : 1)} Hour${_slotInterval > 1 ? "s" : ""}'),
               _buildReviewRow('Bookings Online', _bookingEnabled ? 'Active' : 'Disabled'),
               _buildReviewRow('Slots Limit', '$_slotLimit / slot'),
               _buildReviewRow('FAQs Included', _faqEnabled ? '${_faqs.length} Q&As' : 'Disabled'),

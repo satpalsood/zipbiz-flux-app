@@ -28,11 +28,24 @@ class _ZipBizBookingsDashboardScreenState
   bool _isLoading = false;
   List<ListingBooking> _allBookings = [];
   final RefreshController _refreshController = RefreshController();
+  String? _lastUserId;
 
   @override
   void initState() {
     super.initState();
-    _loadBookings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadBookings();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final user = Provider.of<UserModel>(context).user;
+    if (user != null && (user.id != _lastUserId || (_allBookings.isEmpty && !_isLoading))) {
+      _lastUserId = user.id;
+      _loadBookings();
+    }
   }
 
   Future<void> _loadBookings() async {
@@ -336,10 +349,27 @@ class _ZipBizBookingsDashboardScreenState
                       children: [
                         Text('₹${booking.price ?? '499'}', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 16, color: ZipBizColors.primary, fontWeight: FontWeight.bold)),
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: ZipBizColors.statusOpen.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                          child: const Text('Paid Online', style: TextStyle(fontSize: 10, color: ZipBizColors.statusOpen, fontWeight: FontWeight.bold)),
+                        Builder(
+                          builder: (context) {
+                            final isPaid = (booking.paymentMethod?.toLowerCase() == 'razorpay' &&
+                                (booking.orderStatus == 'completed' ||
+                                    booking.orderStatus == 'processing' ||
+                                    status.contains('PAID') ||
+                                    status.contains('CONFIRM')));
+                            final paymentText = isPaid ? 'Paid Online' : 'Payment Pending';
+                            final paymentColor = isPaid ? ZipBizColors.statusOpen : const Color(0xFFF59E0B);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: paymentColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                paymentText,
+                                style: TextStyle(fontSize: 10, color: paymentColor, fontWeight: FontWeight.bold),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -481,18 +511,35 @@ class _ZipBizBookingsDashboardScreenState
               style: ZipBizTypography.bodySmall.copyWith(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.search, size: 18),
-              label: const Text('Book a Service', style: TextStyle(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ZipBizColors.primaryContainer,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                FluxNavigate.pushNamed(RouteList.category, context: context);
-              },
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Refresh'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ZipBizColors.primaryContainer,
+                    side: const BorderSide(color: ZipBizColors.primaryContainer),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _loadBookings,
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('Book a Service', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ZipBizColors.primaryContainer,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    FluxNavigate.pushNamed(RouteList.category, context: context);
+                  },
+                ),
+              ],
             ),
           ],
         ),

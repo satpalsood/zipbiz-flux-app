@@ -159,7 +159,10 @@ class ZipBiz_Bookings {
             $total_price = floatval(get_post_meta($listing_id, '_price_min', true) ?: 299);
         }
 
-        $tax_and_fee = round($total_price * 0.05, 2); // 5% platform fee
+        // Fetch custom fee from vendor listing (as configured on website)
+        $custom_fee_amount = floatval(get_post_meta($listing_id, '_additional_fee_amount', true) ?: get_post_meta($listing_id, 'additional_fee_amount', true) ?: get_post_meta($listing_id, '_visiting_fee', true) ?: 0);
+        $custom_fee_label = get_post_meta($listing_id, '_additional_fee_label', true) ?: get_post_meta($listing_id, 'additional_fee_label', true) ?: 'Service Fee';
+        $tax_and_fee = $custom_fee_amount; // No platform fee, only vendor custom fee
         $final_total = $total_price + $tax_and_fee;
 
         // 3. Status Determination
@@ -405,7 +408,7 @@ class ZipBiz_Bookings {
         }
 
         $max_slots = intval(get_post_meta($listing_id, '_slot_limit', true) ?: 3);
-        $slot_interval = intval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 1);
+        $slot_interval = floatval($request->get_param('interval') ?: get_post_meta($listing_id, '_slot_interval', true) ?: 1);
 
         if (is_array($day_slots) && !empty($day_slots)) {
             foreach ($day_slots as $slot_item) {
@@ -423,24 +426,17 @@ class ZipBiz_Bookings {
 
         // Only inject fallback default slots if vendor has never configured slots at all
         if (empty($standard_slots) && !$has_configured_slots) {
-            $default_times = ($slot_interval === 2) ? array(
-                '09:00 AM - 11:00 AM',
-                '11:00 AM - 01:00 PM',
-                '02:00 PM - 04:00 PM',
-                '04:00 PM - 06:00 PM',
-                '06:00 PM - 08:00 PM',
-            ) : array(
-                '09:00 AM - 10:00 AM',
-                '10:00 AM - 11:00 AM',
-                '11:00 AM - 12:00 PM',
-                '12:00 PM - 01:00 PM',
-                '02:00 PM - 03:00 PM',
-                '03:00 PM - 04:00 PM',
-                '04:00 PM - 05:00 PM',
-                '05:00 PM - 06:00 PM',
-                '06:00 PM - 07:00 PM',
-                '07:00 PM - 08:00 PM',
-            );
+            $step_mins = intval(round($slot_interval * 60));
+            if ($step_mins < 15) {
+                $step_mins = 60;
+            }
+            $default_times = array();
+            for ($start_m = 9 * 60; $start_m + $step_mins <= 20 * 60; $start_m += $step_mins) {
+                $start_str = date('h:i A', mktime(floor($start_m / 60), $start_m % 60, 0, 1, 1, 2026));
+                $end_m = $start_m + $step_mins;
+                $end_str = date('h:i A', mktime(floor($end_m / 60), $end_m % 60, 0, 1, 1, 2026));
+                $default_times[] = $start_str . ' - ' . $end_str;
+            }
             foreach ($default_times as $dt) {
                 $standard_slots[] = array(
                     'time'     => $dt,

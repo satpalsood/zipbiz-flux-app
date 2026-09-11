@@ -174,7 +174,13 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
       }
     } catch (_) {}
 
-    await Tools.launchURL(webUrl);
+    if (mounted) {
+      FluxNavigate.pushNamed(
+        RouteList.category,
+        arguments: fallbackTitle,
+        context: context,
+      );
+    }
   }
 
   void _openBooking(Product? product) {
@@ -403,33 +409,41 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                               ],
                             ),
                             // Action button
-                            ElevatedButton(
-                              onPressed: slide['action'] as VoidCallback,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: slide['badgeBg'] == const Color(0xFF6B4EA4)
-                                    ? Colors.white
-                                    : const Color(0xFFFF6B00),
-                                foregroundColor: slide['badgeBg'] == const Color(0xFF6B4EA4)
-                                    ? const Color(0xFF4F3287)
-                                    : Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    slide['cta'] as String,
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            SizedBox(
+                              height: 28,
+                              child: ElevatedButton(
+                                onPressed: slide['action'] as VoidCallback,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: slide['badgeBg'] == const Color(0xFF6B4EA4)
+                                      ? Colors.white
+                                      : const Color(0xFFFF6B00),
+                                  foregroundColor: slide['badgeBg'] == const Color(0xFF6B4EA4)
+                                      ? const Color(0xFF4F3287)
+                                      : Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  alignment: Alignment.center,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Icon(slide['ctaIcon'] as IconData, size: 13),
-                                ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      slide['cta'] as String,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        height: 1.1,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(slide['ctaIcon'] as IconData, size: 13),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -559,21 +573,29 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: () => _navigateToSearch(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF6B00),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              SizedBox(
+                height: 42,
+                child: ElevatedButton.icon(
+                  onPressed: () => _navigateToSearch(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B00),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    alignment: Alignment.center,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.search, size: 16),
-                label: const Text(
-                  'Search',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  icon: const Icon(Icons.search, size: 16),
+                  label: const Text(
+                    'Search',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -975,12 +997,12 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                         children: [
                           ClipRRect(
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                            child: Image.network(
-                              img,
+                            child: FluxImage(
+                              imageUrl: img,
                               height: 100,
                               width: 170,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
+                              errorWidget: Container(
                                 height: 100,
                                 color: Colors.grey.shade200,
                                 child: const Icon(Icons.cleaning_services, color: Colors.grey),
@@ -1082,20 +1104,29 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                                       ],
                                     ],
                                   ),
-                                  ElevatedButton(
-                                    onPressed: handleServiceTap,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFFF6B00),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(6),
+                                  SizedBox(
+                                    height: 24,
+                                    child: ElevatedButton(
+                                      onPressed: handleServiceTap,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFF6B00),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                                        alignment: Alignment.center,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Add',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          height: 1.1,
+                                        ),
                                       ),
                                     ),
-                                    child: const Text('Add', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                                   ),
                                 ],
                               ),
@@ -1121,6 +1152,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFFFF6B00)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              alignment: Alignment.center,
             ),
             child: const Text(
               'All Services',
@@ -1128,6 +1160,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFF6B00),
+                height: 1.1,
               ),
             ),
           ),
@@ -1255,13 +1288,24 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                                   width: 44,
                                   height: 44,
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
+                                    borderRadius: BorderRadius.circular(10),
                                     border: Border.all(color: const Color(0xFF2E7D32), width: 1.5),
                                   ),
-                                  child: ClipOval(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8.5),
                                     child: avatar.isNotEmpty
-                                        ? Image.network(avatar, fit: BoxFit.cover)
-                                        : const Icon(Icons.person, color: Colors.grey),
+                                        ? FluxImage(
+                                            imageUrl: avatar,
+                                            fit: BoxFit.cover,
+                                            errorWidget: Container(
+                                              color: Colors.grey.shade100,
+                                              child: const Icon(Icons.person, color: Colors.grey, size: 22),
+                                            ),
+                                          )
+                                        : Container(
+                                            color: Colors.grey.shade100,
+                                            child: const Icon(Icons.person, color: Colors.grey, size: 22),
+                                          ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -1329,18 +1373,27 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                                     color: Color(0xFF1B1C1C),
                                   ),
                                 ),
-                                ElevatedButton(
-                                  onPressed: openProvider,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFF6B00),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                SizedBox(
+                                  height: 24,
+                                  child: ElevatedButton(
+                                    onPressed: openProvider,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFF6B00),
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                                      alignment: Alignment.center,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                    ),
+                                    child: const Text(
+                                      'Book',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        height: 1.1,
+                                      ),
+                                    ),
                                   ),
-                                  child: const Text('Book', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
@@ -1362,6 +1415,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFF6B4EA4)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              alignment: Alignment.center,
             ),
             child: const Text(
               'All Service Providers',
@@ -1369,6 +1423,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF6B4EA4),
+                height: 1.1,
               ),
             ),
           ),
@@ -1439,10 +1494,12 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, idx) {
               final offer = offers[idx];
-              return Container(
-                width: 240,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
+              return GestureDetector(
+                onTap: () => FluxNavigate.pushNamed(RouteList.category, context: context),
+                child: Container(
+                  width: 240,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: offer['gradient'] as List<Color>,
                     begin: Alignment.topLeft,
@@ -1508,6 +1565,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                     ),
                   ],
                 ),
+              ),
               );
             },
           ),
@@ -1585,22 +1643,34 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                 ),
               ),
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () {
-                  FluxNavigate.pushNamed(RouteList.register, context: context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF6B00),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              SizedBox(
+                height: 36,
+                child: ElevatedButton(
+                  onPressed: () {
+                    FluxNavigate.pushNamed(RouteList.register, context: context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B00),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.center,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: const [
+                      Text(
+                        'Start Now',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, height: 1.1),
+                      ),
+                      SizedBox(width: 6),
+                      Icon(Icons.arrow_forward, size: 14),
+                    ],
+                  ),
                 ),
-                icon: const Text(
-                  'Start Now',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                label: const Icon(Icons.arrow_forward, size: 14),
               ),
             ],
           ),

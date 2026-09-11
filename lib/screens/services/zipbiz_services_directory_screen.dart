@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flux_ui/flux_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../common/config.dart' show kProductCard;
 import '../../common/constants.dart';
 import '../../models/category/category_model.dart';
 import '../../models/entities/product.dart';
@@ -372,23 +374,27 @@ class _ZipBizServicesDirectoryScreenState
                             ),
                           ),
                           const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: _loadServices,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF6B00),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                          SizedBox(
+                            height: 42,
+                            child: ElevatedButton.icon(
+                              onPressed: _loadServices,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF6B00),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
-                            ),
-                            icon: const Icon(Icons.search, size: 16),
-                            label: const Text(
-                              'Search',
-                              style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.bold),
+                              icon: const Icon(Icons.search, size: 16),
+                              label: const Text(
+                                'Search',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.bold, height: 1.1),
+                              ),
                             ),
                           ),
                         ],
@@ -688,15 +694,11 @@ class _ZipBizServicesDirectoryScreenState
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        (product.imageFeature != null &&
-                                product.imageFeature!.isNotEmpty)
-                            ? Image.network(
-                                product.imageFeature!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    _buildImagePlaceholder(),
-                              )
-                            : _buildImagePlaceholder(),
+                        FluxImage(
+                          imageUrl: _getEffectiveImage(product),
+                          fit: BoxFit.cover,
+                          errorWidget: _buildImagePlaceholder(),
+                        ),
                         // Verified badge on image
                         Positioned(
                           top: 6,
@@ -845,9 +847,10 @@ class _ZipBizServicesDirectoryScreenState
                               backgroundColor: const Color(0xFFFF6B00),
                               foregroundColor: Colors.white,
                               elevation: 0,
+                              alignment: Alignment.center,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 7),
-                              minimumSize: Size.zero,
+                                  horizontal: 14, vertical: 0),
+                              minimumSize: const Size(64, 32),
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -855,12 +858,16 @@ class _ZipBizServicesDirectoryScreenState
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: const [
                                 Text(
                                   'Book',
+                                  textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
+                                    height: 1.1,
                                   ),
                                 ),
                                 SizedBox(width: 4),
@@ -879,6 +886,52 @@ class _ZipBizServicesDirectoryScreenState
         ),
       ),
     );
+  }
+
+  String _getEffectiveImage(Product product) {
+    final defaultImg = kProductCard.defaultImage;
+    if (product.imageFeature != null &&
+        product.imageFeature!.isNotEmpty &&
+        product.imageFeature != kDefaultImage &&
+        product.imageFeature != defaultImg &&
+        product.imageFeature!.startsWith('http')) {
+      return product.imageFeature!;
+    }
+    for (var img in product.images) {
+      if (img.isNotEmpty &&
+          img != kDefaultImage &&
+          img != defaultImg &&
+          img.startsWith('http')) {
+        return img;
+      }
+    }
+    final nameLower = (product.name ?? '').toLowerCase();
+    final catLower = (product.categoryName ?? '').toLowerCase();
+    if (nameLower.contains('maid') || catLower.contains('maid')) {
+      return 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80';
+    }
+    if (nameLower.contains('clean') || catLower.contains('clean')) {
+      return 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80';
+    }
+    if (nameLower.contains('electr') || catLower.contains('electr')) {
+      return 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=500&q=80';
+    }
+    if (nameLower.contains('plumb') || catLower.contains('plumb')) {
+      return 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=500&q=80';
+    }
+    if (nameLower.contains('salon') || catLower.contains('salon') || nameLower.contains('beauty')) {
+      return 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80';
+    }
+    if (nameLower.contains('ac ') || nameLower.contains('appliance') || catLower.contains('appliance')) {
+      return 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=500&q=80';
+    }
+    if (nameLower.contains('carpent') || catLower.contains('carpent')) {
+      return 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=500&q=80';
+    }
+    if (nameLower.contains('care') || catLower.contains('care')) {
+      return 'https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=500&q=80';
+    }
+    return 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=500&q=80';
   }
 
   Widget _buildImagePlaceholder() {

@@ -96,9 +96,9 @@ function zipbiz_assign_user_role_on_register($user_id) {
     $requested_role = isset($_REQUEST['role']) ? sanitize_text_field($_REQUEST['role']) : '';
     $is_vendor = (!empty($_REQUEST['is_vendor']) && $_REQUEST['is_vendor'] !== 'false' && $_REQUEST['is_vendor'] !== false);
 
-    if ($requested_role === 'provider' || $requested_role === 'owner' || $requested_role === 'vendor' || $requested_role === 'seller' || $is_vendor) {
-        $user->set_role('provider');
-        $user->add_role('owner');
+    if ($requested_role === 'owner' || $requested_role === 'provider' || $requested_role === 'vendor' || $requested_role === 'seller' || $is_vendor) {
+        $user->set_role('owner');
+        $user->add_role('provider');
     } else {
         if (!in_array('administrator', (array)$user->roles)) {
             $user->set_role('guest');

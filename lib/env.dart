@@ -1523,9 +1523,9 @@ Map<String, dynamic> environment = {
 
   /// ➡️ lib/common/smartchat.dart
   "configChat": {
-    "EnableSmartChat": true,
-    "enableVendorChat": true,
-    "showOnScreens": ["profile"],
+    "EnableSmartChat": false,
+    "enableVendorChat": false,
+    "showOnScreens": [],
     "hideOnScreens": [],
     "version": "2",
     "realtimeChatConfig": {
@@ -1592,23 +1592,7 @@ Map<String, dynamic> environment = {
 
   /// config for the chat app
   /// config Whatapp: https://faq.whatsapp.com/en/iphone/23559013
-  "smartChat": [
-    {
-      "app": "tel:+917009218289",
-      "iconData": "phone",
-      "description": "Call (+91 70092 18289)"
-    },
-    {
-      "app": "https://wa.me/917009218289",
-      "iconData": "whatsapp",
-      "description": "WhatsApp (+91 70092 18289)"
-    },
-    {
-      "app": "mailto:support@zipbiz.in",
-      "iconData": "email",
-      "description": "Email (support@zipbiz.in)"
-    }
-  ],
+  "smartChat": [],
 
 
   /// ➡️ lib/common/vendor.dart

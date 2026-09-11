@@ -10,7 +10,6 @@ import '../../widgets/common/zipbiz_button.dart';
 import '../../widgets/common/zipbiz_card.dart';
 import '../../widgets/common/zipbiz_header.dart';
 import '../listings/zipbiz_add_edit_listing_screen.dart';
-import '../messages/zipbiz_chat_detail_screen.dart';
 
 class ZipBizVendorDashboardScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -24,7 +23,7 @@ class ZipBizVendorDashboardScreen extends StatefulWidget {
 
 class _ZipBizVendorDashboardScreenState
     extends State<ZipBizVendorDashboardScreen> {
-  int _activeTab = 0; // 0: Overview, 1: Job Requests, 2: Messages, 3: Wallet, 4: Listings, 5: Stats, 6: Coupons, 7: Reviews
+  int _activeTab = 0; // 0: Overview, 1: Job Requests, 2: Wallet, 3: Listings, 4: Stats, 5: Coupons, 6: Reviews
   bool _isLoading = true;
   bool _isOnline = true;
 
@@ -42,7 +41,6 @@ class _ZipBizVendorDashboardScreenState
   final List<String> _tabNames = [
     'Overview',
     'Job Requests',
-    'Messages',
     'Wallet',
     'Listings',
     'Stats',
@@ -359,7 +357,35 @@ class _ZipBizVendorDashboardScreenState
 
     return Scaffold(
       backgroundColor: ZipBizColors.surface,
-      appBar: const ZipBizTopHeader(showBackButton: true),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1B1C1E), size: 20),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          },
+        ),
+        title: const Text(
+          'Vendor Dashboard',
+          style: TextStyle(
+            color: Color(0xFF1B1C1E),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF5A4136), size: 22),
+            onPressed: _loadAllVendorData,
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _loadAllVendorData,
         color: ZipBizColors.primaryContainer,
@@ -478,16 +504,14 @@ class _ZipBizVendorDashboardScreenState
       case 1:
         return _buildJobRequestsTab();
       case 2:
-        return _buildMessagesTab();
-      case 3:
         return _buildWalletTab();
-      case 4:
+      case 3:
         return _buildListingsTab();
-      case 5:
+      case 4:
         return _buildStatsTab();
-      case 6:
+      case 5:
         return _buildCouponsTab();
-      case 7:
+      case 6:
         return _buildReviewsTab();
       default:
         return _buildOverviewTab();
@@ -515,7 +539,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$activeListings',
                 icon: Icons.list_alt,
                 color: const Color(0xFF2563EB),
-                onTap: () => setState(() => _activeTab = 4),
+                onTap: () => setState(() => _activeTab = 3),
               ),
             ),
             const SizedBox(width: 12),
@@ -525,7 +549,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$totalViews',
                 icon: Icons.visibility,
                 color: const Color(0xFF059669),
-                onTap: () => setState(() => _activeTab = 5),
+                onTap: () => setState(() => _activeTab = 4),
               ),
             ),
           ],
@@ -539,7 +563,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$totalReviews',
                 icon: Icons.star,
                 color: const Color(0xFFD97706),
-                onTap: () => setState(() => _activeTab = 7),
+                onTap: () => setState(() => _activeTab = 6),
               ),
             ),
             const SizedBox(width: 12),
@@ -549,7 +573,7 @@ class _ZipBizVendorDashboardScreenState
                 value: '$totalBookmarks',
                 icon: Icons.bookmark,
                 color: const Color(0xFF7C3AED),
-                onTap: () => setState(() => _activeTab = 5),
+                onTap: () => setState(() => _activeTab = 4),
               ),
             ),
           ],

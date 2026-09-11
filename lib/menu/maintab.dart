@@ -390,7 +390,13 @@ extension TabBarMenuExtention on MainTabsState {
   /// on change tabBar name
   void _onChangeTab(String? nameTab, {bool allowPush = true}) {
     if (saveIndexTab[nameTab] != null) {
-      tabController.animateTo(saveIndexTab[nameTab]);
+      final targetIndex = saveIndexTab[nameTab]!;
+      tabController.animateTo(targetIndex);
+      final targetNavigator = navigators[targetIndex]?.currentState;
+      if (targetNavigator != null && targetNavigator.canPop()) {
+        targetNavigator.popUntil((r) => r.isFirst);
+      }
+      currentTabIndex = targetIndex;
       _emitChildTabName();
     } else if (allowPush) {
       if (nameTab.toString() == RouteList.profile) {
@@ -618,25 +624,21 @@ extension TabBarMenuExtention on MainTabsState {
       return;
     }
 
-    final currentState = navigators[tabController.index]?.currentState;
+    final targetNavigator = navigators[index]?.currentState;
 
-    if (currentTabIndex == index && currentState != null) {
-      // Firstly, check and pop all pages in the current tab if it can pop
-      if (currentState.canPop()) {
-        currentState.popUntil((r) => r.isFirst);
-      } else {
-        // Next, if the current tab is the first tab, scroll to the top
-        final controller = listPrimaryScrollController[index];
+    if (targetNavigator != null && targetNavigator.canPop()) {
+      targetNavigator.popUntil((r) => r.isFirst);
+    } else if (currentTabIndex == index) {
+      final controller = listPrimaryScrollController[index];
 
-        if (controller != null &&
-            controller.hasClients &&
-            controller.offset > 0) {
-          controller.animateTo(
-            0.0,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.linearToEaseOut,
-          );
-        }
+      if (controller != null &&
+          controller.hasClients &&
+          controller.offset > 0) {
+        controller.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.linearToEaseOut,
+        );
       }
     }
     currentTabIndex = index;

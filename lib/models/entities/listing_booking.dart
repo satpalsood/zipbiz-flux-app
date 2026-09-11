@@ -11,6 +11,7 @@ class ListingBooking {
   String? createdDate;
   String? orderId;
   String? orderStatus;
+  String? paymentMethod;
   Map<String, String?> adults = {};
   List<Map<String, String>> services = [];
   ListingBooking(
@@ -23,7 +24,8 @@ class ListingBooking {
       this.services,
       this.orderId,
       this.orderStatus,
-      {this.id});
+      {this.id,
+      this.paymentMethod});
 
   ListingBooking.fromJson(Map json) {
     id = json['id']?.toString() ?? json['order_id']?.toString();
@@ -39,6 +41,7 @@ class ListingBooking {
     createdDate = json['created']?.toString();
     orderId = json['order_id']?.toString();
     orderStatus = json['order_status']?.toString();
+    paymentMethod = json['payment_method']?.toString();
     Map commentJson = {};
     if (json['comment'] != null) {
       if (json['comment'] is String && (json['comment'] as String).trim().isNotEmpty) {
@@ -51,6 +54,12 @@ class ListingBooking {
       } else if (json['comment'] is Map) {
         commentJson = json['comment'];
       }
+    }
+
+    if (paymentMethod == null || paymentMethod!.isEmpty) {
+      paymentMethod = commentJson['payment_method']?.toString() ??
+          commentJson['billing_details']?['payment_method']?.toString() ??
+          json['billing_details']?['payment_method']?.toString();
     }
 
     if (commentJson['adults'] != null) {

@@ -1331,6 +1331,26 @@ class ZipBiz_Vendor {
             );
         }
 
+        // Sync with WooCommerce Silver product if available
+        if (!$product_id) {
+            $silver_posts = get_posts(array(
+                'post_type'      => 'product',
+                's'              => 'Silver',
+                'posts_per_page' => 1,
+                'post_status'    => 'publish',
+            ));
+            if (!empty($silver_posts)) {
+                $product_id = $silver_posts[0]->ID;
+            }
+        }
+
+        $wc_limit = $product_id ? intval(get_post_meta($product_id, '_listing_limit', true) ?: get_post_meta($product_id, '_package_limit', true)) : 0;
+        $plan_limit = $wc_limit > 0 ? $wc_limit : 1;
+        $wc_duration = $product_id ? intval(get_post_meta($product_id, '_listing_duration', true) ?: get_post_meta($product_id, '_package_duration', true)) : 0;
+        $plan_duration = $wc_duration > 0 ? $wc_duration : 365;
+        $wc_prod = ($product_id && function_exists('wc_get_product')) ? wc_get_product($product_id) : null;
+        $plan_name = $wc_prod ? $wc_prod->get_name() : 'Silver Plan (Free)';
+
         // Grant Silver Plan
         $inserted = $wpdb->insert(
             $table_name,
@@ -1339,8 +1359,8 @@ class ZipBiz_Vendor {
                 'product_id'       => $product_id ?: 1001,
                 'order_id'         => 0,
                 'package_count'    => 0,
-                'package_duration' => 365,
-                'package_limit'    => 1,
+                'package_duration' => $plan_duration,
+                'package_limit'    => $plan_limit,
                 'package_featured' => 0,
                 'package_option_booking' => 1,
                 'package_option_reviews' => 1,
@@ -1363,9 +1383,9 @@ class ZipBiz_Vendor {
 
         return ZipBiz_REST_API::success_response(array(
             'package_id' => $wpdb->insert_id,
-            'name'       => 'Silver Plan (Free)',
-            'limit'      => 1,
-        ), 'Silver plan activated successfully! You can now publish 1 listing.');
+            'name'       => $plan_name,
+            'limit'      => $plan_limit,
+        ), 'Silver plan activated successfully! You can now publish your listing.');
     }
 
     /**

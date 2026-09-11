@@ -94,7 +94,7 @@ class ListingService extends WooCommerceService {
         'phone': phoneNumber,
       };
       if (ServerConfig().isListeoType) {
-        data['role'] = isVendor ? 'provider' : 'guest';
+        data['role'] = isVendor ? 'owner' : 'guest';
         data['is_vendor'] = isVendor;
       }
 

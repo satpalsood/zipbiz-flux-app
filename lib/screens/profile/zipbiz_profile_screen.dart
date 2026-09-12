@@ -44,7 +44,7 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
 
   Future<void> _checkVerification(User user) async {
     try {
-      final listings = await ZipBizApiService().getVendorListings(user);
+      final listings = await ZipBizApiService().getVendorListings(user: user);
       if (listings.isNotEmpty) {
         final anyVerified = listings.any((l) =>
             l['verified'] == true ||

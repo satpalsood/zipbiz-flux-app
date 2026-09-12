@@ -198,6 +198,40 @@ class ZipBiz_Bookings {
         $booking_id = 0;
         $order_id = 0;
 
+        if (function_exists('wc_create_order')) {
+            try {
+                $order = wc_create_order(array('customer_id' => $user->ID));
+                if ($order && !is_wp_error($order)) {
+                    $item_name = $listing->post_title;
+                    if (!empty($item_details)) {
+                        $names = array_map(function($i) { return $i['name']; }, $item_details);
+                        $item_name .= ' (' . implode(', ', $names) . ')';
+                    }
+                    if (class_exists('WC_Order_Item_Fee')) {
+                        $item_fee = new WC_Order_Item_Fee();
+                        $item_fee->set_name($item_name);
+                        $item_fee->set_amount($total_price);
+                        $item_fee->set_total($total_price);
+                        $order->add_item($item_fee);
+
+                        if ($tax_and_fee > 0) {
+                            $cust_fee_item = new WC_Order_Item_Fee();
+                            $cust_fee_item->set_name($custom_fee_label);
+                            $cust_fee_item->set_amount($tax_and_fee);
+                            $cust_fee_item->set_total($tax_and_fee);
+                            $order->add_item($cust_fee_item);
+                        }
+                    }
+                    $order->set_payment_method($payment_method === 'razorpay' ? 'razorpay' : 'cod');
+                    $order->set_payment_method_title($payment_method === 'razorpay' ? 'Razorpay Online' : 'Cash on Delivery');
+                    $order->set_status($payment_method === 'razorpay' ? 'pending' : 'processing');
+                    $order->calculate_totals();
+                    $order->save();
+                    $order_id = $order->get_id();
+                }
+            } catch (Exception $e) {}
+        }
+
         $slot_parts = explode(' - ', $time_slot);
         $start_time = !empty($slot_parts[0]) ? trim($slot_parts[0]) : '09:00:00';
         $end_time = !empty($slot_parts[1]) ? trim($slot_parts[1]) : '18:00:00';
@@ -249,7 +283,7 @@ class ZipBiz_Bookings {
                 'date_end'        => $end_dt,
                 'comment'         => json_encode($booking_data),
                 'type'            => 'reservation',
-                'order_id'        => 0,
+                'order_id'        => $order_id,
                 'status'          => $initial_status,
                 'price'           => $final_total,
                 'created'         => current_time('mysql'),
@@ -450,19 +484,16 @@ class ZipBiz_Bookings {
             }
         }
 
-        // Only inject fallback default slots if vendor has never configured slots at all
+        // Default slots: 3-hour intervals with 5 slots per day: 08:00 AM to 11:00 PM
         if (empty($standard_slots) && !$has_configured_slots) {
-            $step_mins = intval(round($slot_interval * 60));
-            if ($step_mins < 15) {
-                $step_mins = 60;
-            }
-            $default_times = array();
-            for ($start_m = 9 * 60; $start_m + $step_mins <= 20 * 60; $start_m += $step_mins) {
-                $start_str = date('h:i A', mktime(floor($start_m / 60), $start_m % 60, 0, 1, 1, 2026));
-                $end_m = $start_m + $step_mins;
-                $end_str = date('h:i A', mktime(floor($end_m / 60), $end_m % 60, 0, 1, 1, 2026));
-                $default_times[] = $start_str . ' - ' . $end_str;
-            }
+            $default_times = array(
+                '08:00 AM - 11:00 AM',
+                '11:00 AM - 02:00 PM',
+                '02:00 PM - 05:00 PM',
+                '05:00 PM - 08:00 PM',
+                '08:00 PM - 11:00 PM',
+            );
+            $max_slots = intval(get_post_meta($listing_id, '_slot_limit', true) ?: 5);
             foreach ($default_times as $dt) {
                 $standard_slots[] = array(
                     'time'     => $dt,
@@ -562,7 +593,15 @@ class ZipBiz_Bookings {
      */
     public function cancel_booking($request) {
         global $wpdb;
-        $user = wp_get_current_user();
+        $user = ZipBiz_REST_API::authenticate_user($request);
+        if (is_wp_error($user) || !$user || !$user->ID) {
+            $user = wp_get_current_user();
+        }
+        $user_id = ($user && $user->ID) ? $user->ID : intval($request->get_param('user_id') ?: $request->get_header('X-User-ID'));
+        if (!$user_id) {
+            return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
+        }
+
         $booking_id = intval($request['id']);
 
         $table_name = self::get_bookings_table();
@@ -578,12 +617,12 @@ class ZipBiz_Bookings {
         $listing = get_post($row['listing_id']);
         $owner_id = $listing ? $listing->post_author : ($row['owner_id'] ?? 0);
 
-        if ($row['bookings_author'] != $user->ID && $owner_id != $user->ID && !current_user_can('manage_options')) {
+        if ($row['bookings_author'] != $user_id && $owner_id != $user_id && !current_user_can('manage_options')) {
             return ZipBiz_REST_API::error_response('FORBIDDEN', 'Cannot cancel this booking', 403);
         }
 
         // Customer cancellation restriction: must be at least 1 hour before scheduled start
-        if ($row['bookings_author'] == $user->ID && !current_user_can('manage_options')) {
+        if ($row['bookings_author'] == $user_id && !current_user_can('manage_options')) {
             $start_timestamp = strtotime($row['date_start']);
             if ($start_timestamp && ($start_timestamp - time() < 3600)) {
                 return ZipBiz_REST_API::error_response('CANNOT_CANCEL', 'Bookings can only be cancelled up to 1 hour before scheduled start time. Please contact support.', 400);
@@ -596,8 +635,25 @@ class ZipBiz_Bookings {
             $wpdb->update($table_name, array('status' => 'cancelled'), array('id' => $booking_id));
         }
 
+        // Update comment json status if present
+        if (!empty($row['comment'])) {
+            $cmt = json_decode($row['comment'], true);
+            if (is_array($cmt)) {
+                $cmt['status'] = 'cancelled';
+                $wpdb->update($table_name, array('comment' => json_encode($cmt)), array('id' => $booking_id));
+            }
+        }
+
+        // If WooCommerce order is attached, update order status to cancelled
+        if (!empty($row['order_id']) && intval($row['order_id']) > 0 && function_exists('wc_get_order')) {
+            $order = wc_get_order(intval($row['order_id']));
+            if ($order) {
+                $order->update_status('cancelled', 'Booking cancelled via ZipBiz app.');
+            }
+        }
+
         // Notify other party
-        $notify_target = ($user->ID == $row['bookings_author']) ? $owner_id : $row['bookings_author'];
+        $notify_target = ($user_id == $row['bookings_author']) ? $owner_id : $row['bookings_author'];
         ZipBiz_Notifications::send_push_notification(
             $notify_target,
             'Booking Cancelled',
@@ -626,6 +682,18 @@ class ZipBiz_Bookings {
         $page = max(1, intval($request->get_param('page') ?: 1));
         $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
         $offset = ($page - 1) * $per_page;
+
+        // Auto-cancellation sweep for customer bookings
+        $wpdb->query(
+            "UPDATE $table_name 
+             SET status = 'cancelled' 
+             WHERE status IN ('waiting', 'pending') 
+             AND (
+                 (created IS NOT NULL AND created != '0000-00-00 00:00:00' AND created < DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                 OR
+                 (date_start IS NOT NULL AND date_start != '0000-00-00 00:00:00' AND date_start < NOW())
+             )"
+        );
 
         $where = "WHERE bookings_author = $user_id";
         if ($status !== 'all') {

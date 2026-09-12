@@ -19,6 +19,8 @@ class ListingBooking {
   String? timeSlot;
   String? bookingDate;
   String? hours;
+  String? startOtp;
+  String? finishOtp;
 
   ListingBooking(
       this.title,
@@ -35,11 +37,13 @@ class ListingBooking {
       this.address,
       this.timeSlot,
       this.bookingDate,
-      this.hours});
+      this.hours,
+      this.startOtp,
+      this.finishOtp});
 
   ListingBooking.fromJson(Map json) {
     id = json['id']?.toString() ?? json['order_id']?.toString();
-    title = json['title']?.toString();
+    title = json['title']?.toString()?.replaceAll('&#8217;', "'");
     if (json['featured_image'] is String) {
       featuredImage = json['featured_image'];
     } else {
@@ -82,6 +86,8 @@ class ListingBooking {
     timeSlot ??= json['time_slot']?.toString() ?? json['slot']?.toString();
     bookingDate ??= json['date']?.toString() ?? json['date_start']?.toString();
     hours ??= json['hours']?.toString();
+    startOtp ??= json['start_otp']?.toString() ?? commentJson['start_otp']?.toString();
+    finishOtp ??= json['finish_otp']?.toString() ?? commentJson['finish_otp']?.toString();
 
     if (paymentMethod == null || paymentMethod!.isEmpty) {
       paymentMethod = commentJson['payment_method']?.toString() ??

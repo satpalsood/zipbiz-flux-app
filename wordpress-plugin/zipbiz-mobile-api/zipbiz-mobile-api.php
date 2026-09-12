@@ -324,6 +324,71 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
         }
     }
 
+    // Verified and featured flags
+    $is_verified = get_post_meta($listing_id, '_verified', true);
+    $data['verified'] = ($is_verified === 'on' || $is_verified === '1' || $is_verified === true || $is_verified === 'claimed');
+    $data['_verified'] = $data['verified'] ? 'on' : 'off';
+    
+    $is_featured = get_post_meta($listing_id, '_featured', true);
+    $data['featured'] = ($is_featured === 'on' || $is_featured === '1' || $is_featured === true);
+    $data['_featured'] = $data['featured'] ? 'on' : 'off';
+
+    // Show coupons toggle
+    $show_coupons = get_post_meta($listing_id, '_show_coupons', true) ?: get_post_meta($listing_id, 'show_coupons', true) ?: 'on';
+    $data['show_coupons'] = ($show_coupons === 'on' || $show_coupons === '1' || $show_coupons === true);
+    $data['_show_coupons'] = $data['show_coupons'] ? 'on' : 'off';
+
+    // Coupons for listing
+    $available_coupons = array();
+    if ($data['show_coupons']) {
+        $listing_post = get_post($listing_id);
+        $author_id = $listing_post ? $listing_post->post_author : 0;
+        if ($author_id) {
+            $user_coupons = get_user_meta($author_id, '_zipbiz_vendor_coupons', true) ?: array();
+            if (is_array($user_coupons)) {
+                foreach ($user_coupons as $uc) {
+                    $available_coupons[] = $uc;
+                }
+            }
+            $wc_coupons = get_posts(array(
+                'post_type'      => 'shop_coupon',
+                'post_status'    => 'publish',
+                'posts_per_page' => 10,
+                'meta_query'     => array(
+                    array(
+                        'key'   => '_vendor_id',
+                        'value' => $author_id,
+                    ),
+                ),
+            ));
+            if (!empty($wc_coupons)) {
+                foreach ($wc_coupons as $cp) {
+                    $c_code = $cp->post_title;
+                    $already = false;
+                    foreach ($available_coupons as $ac) {
+                        if (isset($ac['code']) && strcasecmp($ac['code'], $c_code) === 0) {
+                            $already = true;
+                            break;
+                        }
+                    }
+                    if (!$already) {
+                        $available_coupons[] = array(
+                            'id'            => $cp->ID,
+                            'code'          => $c_code,
+                            'amount'        => floatval(get_post_meta($cp->ID, 'coupon_amount', true) ?: 0),
+                            'discount_type' => get_post_meta($cp->ID, 'discount_type', true) ?: 'percent',
+                            'description'   => $cp->post_excerpt ?: 'Promotional Discount Coupon',
+                        );
+                    }
+                }
+            }
+        }
+    }
+    $data['coupons'] = $available_coupons;
+    if (isset($data['listing_data']) && is_array($data['listing_data'])) {
+        $data['listing_data']['coupons'] = $available_coupons;
+    }
+
     $response->set_data($data);
     return $response;
 }

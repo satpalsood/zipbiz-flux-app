@@ -1848,9 +1848,11 @@ class Product {
     try {
       listingType = true;
       name = HtmlUnescape().convert(Tools.getValueByKey(
-          json, DataMapping().kProductDataMapping['title']));
+          json, DataMapping().kProductDataMapping['title'])?.toString() ?? '')
+          .replaceAll('&#8217;', "'");
       description = Tools.getValueByKey(
-          json, DataMapping().kProductDataMapping['description']);
+          json, DataMapping().kProductDataMapping['description'])?.toString()
+          .replaceAll('&#8217;', "'");
       permalink =
           Tools.getValueByKey(json, DataMapping().kProductDataMapping['link']);
 
@@ -2040,7 +2042,14 @@ class Product {
 
       // 3. Check direct featured image fields
       if (imageFeature == null || imageFeature == kDefaultImage || imageFeature!.isEmpty) {
-        for (final k in ['featured_image', 'featured_image_url', 'image']) {
+        for (final k in [
+          'featured_image',
+          'featured_image_url',
+          'featured_media_src_url',
+          'jetpack_featured_media_url',
+          'image',
+          '_featured_image_url'
+        ]) {
           final val = json[k] ?? json['listing_data']?[k];
           if (val is String && val.startsWith('http')) {
             imageFeature = val;
@@ -2106,6 +2115,11 @@ class Product {
         'min_booking_value',
         '_faq',
         'faq',
+        '_listing_faq',
+        'listing_faq',
+        'show_coupons',
+        '_show_coupons',
+        'coupons',
       ]) {
         if (json[k] != null && !metaData.any((m) => m['key'] == k)) {
           metaData.add({'key': k, 'value': json[k]});

@@ -1679,13 +1679,13 @@ Map<String, dynamic> environment = {
     "enable": true,
 
     /// duration in milliseconds, used for all types except "rive" and "flare"
-    "duration": 2000,
+    "duration": 2200,
 
     ///  Type should be: 'fade-in', 'zoom-in', 'zoom-out', 'top-down', 'rive', 'flare', 'static'
-    "type": "static",
+    "type": "fade-in",
     "image": "assets/images/splashscreen.png",
     "boxFit": "contain",
-    "backgroundColor": "#FBF9F8",
+    "backgroundColor": "#3B0764",
     "paddingTop": 0,
     "paddingBottom": 0,
     "paddingLeft": 0,

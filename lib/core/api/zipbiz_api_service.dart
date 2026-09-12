@@ -89,13 +89,30 @@ class ZipBizApiService {
     return [];
   }
 
-  /// Cancel booking
+  /// Cancel customer booking
   Future<bool> cancelBooking(int bookingId, User user) async {
     final url = Uri.parse('$_baseUrl/booking/$bookingId/cancel');
     final body = jsonEncode({'user_id': user.id, 'cookie': user.cookie});
     final response = await http.post(url, headers: _getHeaders(user), body: body);
     final data = jsonDecode(response.body);
-    return response.statusCode == 200 && data['success'] == true;
+    if (response.statusCode == 200 && data['success'] == true) {
+      return true;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel booking');
+    }
+  }
+
+  /// Cancel vendor booking
+  Future<bool> cancelVendorBooking(int bookingId, User user) async {
+    final url = Uri.parse('$_baseUrl/vendor/bookings/$bookingId/cancel');
+    final body = jsonEncode({'user_id': user.id, 'cookie': user.cookie});
+    final response = await http.post(url, headers: _getHeaders(user), body: body);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return true;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to cancel booking');
+    }
   }
 
   /// Create Razorpay order server-side
@@ -194,8 +211,11 @@ class ZipBizApiService {
     }
     final body = bodyMap.isNotEmpty ? jsonEncode(bodyMap) : null;
     final response = await http.post(url, headers: _getHeaders(user), body: body);
-    final data = jsonDecode(response.body);
-    return (response.statusCode == 200 || response.statusCode == 201) && data['success'] == true;
+    if ((response.statusCode == 200 || response.statusCode == 201) && data['success'] == true) {
+      return true;
+    } else {
+      throw Exception(data['message'] ?? 'Failed to update booking status');
+    }
   }
 
   /// Vendor: Get earnings report

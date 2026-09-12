@@ -55,11 +55,11 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
     try {
       for (var item in widget.product.metaData) {
         if (item['key'] == '_slot_interval') {
-          return int.tryParse(item['value']?.toString() ?? '2') ?? 2;
+          return int.tryParse(item['value']?.toString() ?? '3') ?? 3;
         }
       }
     } catch (_) {}
-    return 2;
+    return 3;
   }
 
   List<String> get _computedSlots {
@@ -68,24 +68,40 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
     }
     if (_slotInterval == 1) {
       return [
+        '08:00 AM - 09:00 AM',
         '09:00 AM - 10:00 AM',
         '10:00 AM - 11:00 AM',
         '11:00 AM - 12:00 PM',
         '12:00 PM - 01:00 PM',
+        '01:00 PM - 02:00 PM',
         '02:00 PM - 03:00 PM',
         '03:00 PM - 04:00 PM',
         '04:00 PM - 05:00 PM',
         '05:00 PM - 06:00 PM',
         '06:00 PM - 07:00 PM',
         '07:00 PM - 08:00 PM',
+        '08:00 PM - 09:00 PM',
+        '09:00 PM - 10:00 PM',
+        '10:00 PM - 11:00 PM',
+      ];
+    }
+    if (_slotInterval == 2) {
+      return [
+        '08:00 AM - 10:00 AM',
+        '10:00 AM - 12:00 PM',
+        '12:00 PM - 02:00 PM',
+        '02:00 PM - 04:00 PM',
+        '04:00 PM - 06:00 PM',
+        '06:00 PM - 08:00 PM',
+        '08:00 PM - 10:00 PM',
       ];
     }
     return [
-      '09:00 AM - 11:00 AM',
-      '11:00 AM - 01:00 PM',
-      '02:00 PM - 04:00 PM',
-      '04:00 PM - 06:00 PM',
-      '06:00 PM - 08:00 PM',
+      '08:00 AM - 11:00 AM',
+      '11:00 AM - 02:00 PM',
+      '02:00 PM - 05:00 PM',
+      '05:00 PM - 08:00 PM',
+      '08:00 PM - 11:00 PM',
     ];
   }
 

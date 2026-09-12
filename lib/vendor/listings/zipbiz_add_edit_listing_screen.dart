@@ -162,9 +162,12 @@ class _ZipBizAddEditListingScreenState
   String? _selectedPackageName;
   bool _isActivatingPackage = false;
 
-  // Step 8: FAQ Section
+  // Step 8: FAQ Section & Coupons
   bool _faqEnabled = true;
   final List<Map<String, String>> _faqs = [];
+  bool _showCoupons = true;
+  List<dynamic> _availableCoupons = [];
+  bool _isLoadingCoupons = false;
 
   @override
   void initState() {
@@ -177,6 +180,18 @@ class _ZipBizAddEditListingScreenState
     }
     _loadVendorConfig();
     _loadDynamicFields();
+    _loadVendorCoupons();
+  }
+
+  Future<void> _loadVendorCoupons() async {
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user == null) return;
+    try {
+      final coupons = await ZipBizApiService().getVendorCoupons(user);
+      if (mounted) {
+        setState(() => _availableCoupons = coupons);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadPackages() async {
@@ -391,6 +406,11 @@ class _ZipBizAddEditListingScreenState
         }
       }
     }
+
+    final showCouponsVal = item['show_coupons'] ?? item['_show_coupons'];
+    if (showCouponsVal != null) {
+      _showCoupons = showCouponsVal == true || showCouponsVal == 'on' || showCouponsVal == '1';
+    }
   }
 
   @override
@@ -549,6 +569,7 @@ class _ZipBizAddEditListingScreenState
         }
       ],
       'faq': _faqEnabled ? _faqs : [],
+      'show_coupons': _showCoupons ? 'on' : 'off',
     };
 
     try {
@@ -757,7 +778,7 @@ class _ZipBizAddEditListingScreenState
             'Contact',
             'Hours',
             'Pricing',
-            'FAQs',
+            'FAQs & Coupons',
             'Review',
           ]
         : [
@@ -768,7 +789,7 @@ class _ZipBizAddEditListingScreenState
             'Contact',
             'Hours',
             'Pricing',
-            'FAQs',
+            'FAQs & Coupons',
             'Review',
           ];
 
@@ -1811,7 +1832,7 @@ class _ZipBizAddEditListingScreenState
     );
   }
 
-  // Step 8: FAQ Section
+  // Step 8: FAQ Section & Coupons
   Widget _buildStep8Faq() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1867,6 +1888,84 @@ class _ZipBizAddEditListingScreenState
             );
           }),
         ],
+        const SizedBox(height: 24),
+        const Divider(height: 1),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Show Coupons in Business Profile', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18)),
+                  const SizedBox(height: 4),
+                  Text('Display your promotional discount coupons directly on your business detail page for customers.', style: ZipBizTypography.bodySmall),
+                ],
+              ),
+            ),
+            Switch(
+              value: _showCoupons,
+              activeColor: ZipBizColors.primaryContainer,
+              onChanged: (val) => setState(() => _showCoupons = val),
+            ),
+          ],
+        ),
+        if (_showCoupons) ...[
+          const SizedBox(height: 12),
+          if (_availableCoupons.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.confirmation_number_outlined, size: 36, color: Colors.grey),
+                  const SizedBox(height: 8),
+                  Text('No promotional coupons created yet', style: ZipBizTypography.labelLarge),
+                  const SizedBox(height: 4),
+                  Text('You can create coupons anytime in your Vendor Dashboard Coupons tab to offer discounts to customers.', textAlign: TextAlign.center, style: ZipBizTypography.bodySmall),
+                ],
+              ),
+            )
+          else ...[
+            Text('Available Coupons (${_availableCoupons.length})', style: ZipBizTypography.labelLarge.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ..._availableCoupons.map((c) {
+              final code = c['code']?.toString() ?? 'COUPON';
+              final amount = c['amount']?.toString() ?? c['discount']?.toString() ?? '0';
+              final type = c['discount_type']?.toString() ?? c['type']?.toString() ?? 'percent';
+
+              return ZipBizCard(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: Colors.purple.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+                      child: Text(code, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.purple)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(type == 'percent' ? '$amount% Off' : '₹$amount Flat Off', style: ZipBizTypography.labelLarge),
+                          const Text('Will be displayed on business page', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.visibility, color: ZipBizColors.statusOpen, size: 20),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
       ],
     );
   }
@@ -1911,6 +2010,7 @@ class _ZipBizAddEditListingScreenState
               _buildReviewRow('Bookings Online', _bookingEnabled ? 'Active' : 'Disabled'),
               _buildReviewRow('Slots Limit', '$_slotLimit / slot'),
               _buildReviewRow('FAQs Included', _faqEnabled ? '${_faqs.length} Q&As' : 'Disabled'),
+              _buildReviewRow('Show Coupons', _showCoupons ? 'Enabled (${_availableCoupons.length} coupons)' : 'Disabled'),
               _buildReviewRow('Gallery Photos', '${_galleryImages.length} images'),
             ],
           ),

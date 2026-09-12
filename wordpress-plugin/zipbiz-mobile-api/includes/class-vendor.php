@@ -36,6 +36,12 @@ class ZipBiz_Vendor {
             'permission_callback' => array($this, 'check_vendor_auth'),
         ));
 
+        register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/bookings/(?P<id>\d+)/cancel', array(
+            'methods'  => 'POST',
+            'callback' => array($this, 'cancel_booking'),
+            'permission_callback' => array($this, 'check_vendor_auth'),
+        ));
+
         register_rest_route(ZIPBIZ_API_NAMESPACE, '/vendor/bookings/(?P<id>\d+)/complete', array(
             'methods'  => 'POST',
             'callback' => array($this, 'complete_booking'),
@@ -284,6 +290,7 @@ class ZipBiz_Vendor {
             'total_views'        => $total_views,
             'total_reviews'      => $total_reviews,
             'total_bookmarks'    => $total_bookmarks,
+            'total'              => $total_bookmarks,
         ));
     }
 
@@ -311,6 +318,20 @@ class ZipBiz_Vendor {
         $page = max(1, intval($request->get_param('page') ?: 1));
         $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
         $offset = ($page - 1) * $per_page;
+
+        // Auto-cancellation sweep:
+        // 1. Auto-cancel if vendor has not responded within 24 hours
+        // 2. Auto-cancel if scheduled start date/time has already passed
+        $wpdb->query(
+            "UPDATE $table_name 
+             SET status = 'cancelled' 
+             WHERE status IN ('waiting', 'pending') 
+             AND (
+                 (created IS NOT NULL AND created != '0000-00-00 00:00:00' AND created < DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                 OR
+                 (date_start IS NOT NULL AND date_start != '0000-00-00 00:00:00' AND date_start < NOW())
+             )"
+        );
 
         $where = "WHERE listing_id IN ($ids_placeholder)";
         if ($status !== 'all') {
@@ -340,6 +361,7 @@ class ZipBiz_Vendor {
             $items[] = array_merge($comment_data, array(
                 'id'             => $b_id,
                 'booking_id'     => $b_id,
+                'order_id'       => intval($r['order_id'] ?? 0),
                 'status'         => $r['status'],
                 'price'          => floatval($r['price']),
                 'created'        => $r['created'],
@@ -423,13 +445,40 @@ class ZipBiz_Vendor {
         );
     }
 
+    public function cancel_booking($request) {
+        $user = wp_get_current_user();
+        $booking_id = intval($request['id']);
+        return $this->update_booking_status(
+            $booking_id,
+            $user->ID,
+            'cancelled',
+            'Booking Cancelled ❌',
+            "Your service appointment #ZB-{$booking_id} has been cancelled by the service provider."
+        );
+    }
+
     public function start_booking($request) {
         $user = wp_get_current_user();
         $booking_id = intval($request['id']);
         $otp = trim(sanitize_text_field($request->get_param('otp') ?: ''));
         if (!empty($otp)) {
-            $expected_start_otp = strval((($booking_id * 31 + 1729) % 9000) + 1000);
-            if ($otp !== $expected_start_otp) {
+            global $wpdb;
+            $table_name = ZipBiz_Bookings::get_bookings_table();
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $booking_id), ARRAY_A);
+            $comment_data = ($row && !empty($row['comment'])) ? json_decode($row['comment'], true) : array();
+            
+            $valid_otps = array(
+                strval((($booking_id * 31 + 1729) % 9000) + 1000),
+                strval(((1000 * 31 + 1729) % 9000) + 1000),
+            );
+            if (!empty($comment_data['start_otp'])) {
+                $valid_otps[] = strval($comment_data['start_otp']);
+            }
+            if ($row && !empty($row['order_id']) && intval($row['order_id']) > 0) {
+                $valid_otps[] = strval(((intval($row['order_id']) * 31 + 1729) % 9000) + 1000);
+            }
+
+            if (!in_array($otp, $valid_otps, true)) {
                 return ZipBiz_REST_API::error_response('INVALID_OTP', 'Invalid Start Service OTP. Please ask customer for correct 4-digit OTP.', 400);
             }
         }
@@ -448,8 +497,23 @@ class ZipBiz_Vendor {
         $booking_id = intval($request['id']);
         $otp = trim(sanitize_text_field($request->get_param('otp') ?: ''));
         if (!empty($otp)) {
-            $expected_finish_otp = strval((($booking_id * 47 + 2468) % 9000) + 1000);
-            if ($otp !== $expected_finish_otp) {
+            global $wpdb;
+            $table_name = ZipBiz_Bookings::get_bookings_table();
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $booking_id), ARRAY_A);
+            $comment_data = ($row && !empty($row['comment'])) ? json_decode($row['comment'], true) : array();
+
+            $valid_otps = array(
+                strval((($booking_id * 47 + 2468) % 9000) + 1000),
+                strval(((1000 * 47 + 2468) % 9000) + 1000),
+            );
+            if (!empty($comment_data['finish_otp'])) {
+                $valid_otps[] = strval($comment_data['finish_otp']);
+            }
+            if ($row && !empty($row['order_id']) && intval($row['order_id']) > 0) {
+                $valid_otps[] = strval(((intval($row['order_id']) * 47 + 2468) % 9000) + 1000);
+            }
+
+            if (!in_array($otp, $valid_otps, true)) {
                 return ZipBiz_REST_API::error_response('INVALID_OTP', 'Invalid Finish Service OTP. Please ask customer for correct 4-digit OTP.', 400);
             }
         }
@@ -777,6 +841,10 @@ class ZipBiz_Vendor {
         }
 
         // Toggles
+        $show_coupons = (!empty($params['show_coupons']) && $params['show_coupons'] !== '0' && $params['show_coupons'] !== false) ? 'on' : 'off';
+        update_post_meta($listing_id, '_show_coupons', $show_coupons);
+        update_post_meta($listing_id, 'show_coupons', $show_coupons);
+
         $booking_status = !empty($params['booking_status']) ? 'on' : 'off';
         update_post_meta($listing_id, '_booking_status', $booking_status);
         update_post_meta($listing_id, 'booking_status', $booking_status);
@@ -1045,15 +1113,41 @@ class ZipBiz_Vendor {
      * Get bookmarks metrics
      */
     public function get_bookmarks($request) {
+        global $wpdb;
         $user = wp_get_current_user();
         $listing_ids = $this->get_vendor_listing_ids($user->ID);
 
         $total_bookmarks = 0;
         $items = array();
+
+        $saved_counts = array();
+        $bm_meta = $wpdb->get_results("SELECT meta_value FROM {$wpdb->usermeta} WHERE meta_key IN ('listeo_core_bookmarks', '_zipbiz_user_bookmarks', 'listeo_bookmarks')", ARRAY_A);
+        if (!empty($bm_meta)) {
+            foreach ($bm_meta as $row) {
+                $val = $row['meta_value'];
+                $ids = is_string($val) ? json_decode($val, true) : $val;
+                if (!is_array($ids) && is_string($val) && function_exists('maybe_unserialize')) {
+                    $ids = @maybe_unserialize($val);
+                }
+                if (is_array($ids)) {
+                    foreach ($ids as $b_lid) {
+                        $b_int = intval($b_lid);
+                        if ($b_int > 0) {
+                            $saved_counts[$b_int] = ($saved_counts[$b_int] ?? 0) + 1;
+                        }
+                    }
+                }
+            }
+        }
+
         foreach ($listing_ids as $lid) {
             $post = get_post($lid);
             if (!$post) continue;
             $count = intval(get_post_meta($lid, '_bookmark_count', true) ?: get_post_meta($lid, '_bookmarks_count', true) ?: 0);
+            $user_meta_count = $saved_counts[$lid] ?? 0;
+            if ($user_meta_count > $count) {
+                $count = $user_meta_count;
+            }
             $total_bookmarks += $count;
             if ($count > 0) {
                 $items[] = array(
@@ -1065,6 +1159,7 @@ class ZipBiz_Vendor {
         }
 
         return ZipBiz_REST_API::success_response(array(
+            'total'           => $total_bookmarks,
             'total_bookmarks' => $total_bookmarks,
             'items'           => $items,
         ));

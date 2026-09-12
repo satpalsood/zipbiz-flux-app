@@ -40,6 +40,24 @@ class ZipBizCartManager {
 
   static void addToCart(ZipBizCartItem item, BuildContext context) => addItem(item, context);
 
+  static void syncFromSelectedServices(Product product, List<Map<String, dynamic>> services) {
+    _items.removeWhere((item) => item.product?.id == product.id || (product.id != null && item.listingId == int.tryParse(product.id!)));
+    for (final s in services) {
+      final name = s['name']?.toString() ?? 'Service';
+      final price = (s['price'] is num) ? (s['price'] as num).toDouble() : (double.tryParse(s['price']?.toString() ?? '0') ?? 0.0);
+      _items.add(ZipBizCartItem(
+        id: '${product.id}_$name',
+        title: name,
+        price: price,
+        duration: s['duration']?.toString() ?? '60 mins',
+        product: product,
+        listingId: int.tryParse(product.id ?? ''),
+        businessTitle: product.name,
+      ));
+    }
+    cartCountNotifier.value = _items.length;
+  }
+
   static void addItem(ZipBizCartItem item, BuildContext context) {
     // Avoid duplicate service additions of same item
     final exists = _items.any((i) => i.id == item.id);

@@ -27,6 +27,39 @@ class ZipBizProfileScreen extends StatefulWidget {
 }
 
 class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
+  bool _isVerified = false;
+  String? _loadedUserId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final user = Provider.of<UserModel>(context, listen: false).user;
+    if (user != null && user.id != _loadedUserId) {
+      _loadedUserId = user.id;
+      _checkVerification(user);
+    }
+  }
+
+  Future<void> _checkVerification(User user) async {
+    try {
+      final listings = await ZipBizApiService().getVendorListings(user);
+      if (listings.isNotEmpty) {
+        final anyVerified = listings.any((l) =>
+            l['verified'] == true ||
+            l['_verified'] == 'on' ||
+            l['featured'] == true ||
+            l['_featured'] == 'on');
+        if (mounted) {
+          setState(() => _isVerified = anyVerified || user.isVender);
+        }
+      } else if (user.isVender) {
+        if (mounted) {
+          setState(() => _isVerified = true);
+        }
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     final userModel = Provider.of<UserModel>(context);
@@ -87,14 +120,20 @@ class _ZipBizProfileScreenState extends State<ZipBizProfileScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Expanded(
+                                    Flexible(
                                       child: Text(
                                         user.fullName.isNotEmpty ? user.fullName : (user.username ?? 'ZipBiz User'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18),
                                       ),
                                     ),
-                                    const Icon(Icons.verified, size: 18, color: ZipBizColors.statusOpen),
+                                    if (_isVerified || isVendor) ...[
+                                      const SizedBox(width: 5),
+                                      const Icon(Icons.verified, size: 18, color: ZipBizColors.statusOpen),
+                                    ],
                                   ],
                                 ),
                                 const SizedBox(height: 3),

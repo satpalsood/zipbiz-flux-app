@@ -819,17 +819,35 @@ class _ZipBizServicesDirectoryScreenState
     }
 
     String? minPrice;
-    if (product.price != null && product.price!.isNotEmpty && double.tryParse(product.price!) != null && double.parse(product.price!) > 0) {
-      minPrice = product.price;
-    } else if (product.regularPrice != null && product.regularPrice!.isNotEmpty && double.tryParse(product.regularPrice!) != null && double.parse(product.regularPrice!) > 0) {
-      minPrice = product.regularPrice;
-    } else {
-      for (final m in product.metaData) {
-        final k = (m['key'] ?? '').toString();
-        final v = (m['value'] ?? '').toString();
-        if ((k == '_price_min' || k == 'price_min' || k == '_price' || k == 'min_price') && v.isNotEmpty && v != '0') {
-          minPrice = v;
-          break;
+    if (product.listingMenu != null && product.listingMenu!.isNotEmpty) {
+      double lowest = double.infinity;
+      for (final menu in product.listingMenu!) {
+        if (menu.menuPrices != null) {
+          for (final mp in menu.menuPrices!) {
+            final pVal = double.tryParse(mp.price ?? '');
+            if (pVal != null && pVal > 0 && pVal < lowest) {
+              lowest = pVal;
+            }
+          }
+        }
+      }
+      if (lowest != double.infinity) {
+        minPrice = lowest.toStringAsFixed(0);
+      }
+    }
+    if (minPrice == null || minPrice == '0') {
+      if (product.price != null && product.price!.isNotEmpty && double.tryParse(product.price!) != null && double.parse(product.price!) > 0) {
+        minPrice = product.price;
+      } else if (product.regularPrice != null && product.regularPrice!.isNotEmpty && double.tryParse(product.regularPrice!) != null && double.parse(product.regularPrice!) > 0) {
+        minPrice = product.regularPrice;
+      } else {
+        for (final m in product.metaData) {
+          final k = (m['key'] ?? '').toString();
+          final v = (m['value'] ?? '').toString();
+          if ((k == '_price_min' || k == 'price_min' || k == '_price' || k == 'min_price') && v.isNotEmpty && v != '0') {
+            minPrice = v;
+            break;
+          }
         }
       }
     }

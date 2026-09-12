@@ -1135,20 +1135,7 @@ class _ZipBizHomeViewState extends State<ZipBizHomeView> {
                                   SizedBox(
                                     height: 22,
                                     child: ElevatedButton(
-                                      onPressed: () {
-                                        final numPrice = double.tryParse(price.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
-                                        ZipBizCartManager.addToCart(
-                                          ZipBizCartItem(
-                                            id: title,
-                                            title: title,
-                                            serviceName: title,
-                                            price: numPrice,
-                                            businessTitle: type == 'maid' ? 'Zipbiz Maid Service' : 'Zipbiz Cleaning Service',
-                                            businessSlug: type == 'maid' ? 'zipbiz-maid-services' : 'zipbiz-cleaning-services',
-                                          ),
-                                          context,
-                                        );
-                                      },
+                                      onPressed: handleServiceTap,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFFFF6B00),
                                         foregroundColor: Colors.white,

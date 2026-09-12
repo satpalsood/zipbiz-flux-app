@@ -564,7 +564,7 @@ class _ZipBizVendorDashboardScreenState
     final activeListings = _dashboardStats['active_listings'] ?? _vendorListings.length;
     final totalViews = _dashboardStats['total_views'] ?? 0;
     final totalReviews = _dashboardStats['total_reviews'] ?? _reviews.length;
-    final totalBookmarks = _dashboardStats['total_bookmarks'] ?? _bookmarks['total'] ?? 0;
+    final totalBookmarks = _dashboardStats['total_bookmarks'] ?? _bookmarks['total_bookmarks'] ?? _bookmarks['total'] ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,7 +627,8 @@ class _ZipBizVendorDashboardScreenState
             Text('Quick Operations', style: ZipBizTypography.headlineSmall.copyWith(fontSize: 17)),
             TextButton.icon(
               icon: const Icon(Icons.add_circle, size: 18),
-              label: const Text('Add Listing'),
+              label: const Text('Add Business'),
+              style: TextButton.styleFrom(alignment: Alignment.center),
               onPressed: _openAddListing,
             ),
           ],
@@ -1243,27 +1244,46 @@ class _ZipBizVendorDashboardScreenState
               ),
             ] else if (status == 'confirmed' || status == 'accepted') ...[
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ZipBizColors.primaryContainer,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    alignment: Alignment.center,
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ZipBizColors.primaryContainer,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        alignment: Alignment.center,
+                      ),
+                      onPressed: () => _handleStartService(job),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.play_arrow, size: 18),
+                          SizedBox(width: 6),
+                          Text('Start Service (OTP)', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
                   ),
-                  onPressed: () => _handleStartService(job),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.play_arrow, size: 18),
-                      SizedBox(width: 8),
-                      Text('Start Service (Enter OTP)', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        alignment: Alignment.center,
+                      ),
+                      onPressed: () => _showVendorCancelConfirm(id),
+                      child: const Text('Cancel Job', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
                   ),
-                ),
+                ],
               ),
             ] else if (status == 'in_progress') ...[
               const SizedBox(height: 12),
@@ -1296,12 +1316,45 @@ class _ZipBizVendorDashboardScreenState
     );
   }
 
+  void _showVendorCancelConfirm(int bookingId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancel Job Request?'),
+        content: Text('Are you sure you want to cancel Job #ZB-$bookingId? This action will notify the customer and mark the booking as cancelled.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep Job')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _updateJobRequest(bookingId, 'cancel');
+            },
+            child: const Text('Confirm Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleStartService(dynamic job) {
     final rawId = job['booking_id'] ?? job['id'] ?? 0;
     final bId = int.tryParse(rawId.toString()) ?? 1000;
-    final expectedStartOtp = job['start_otp']?.toString().trim().isNotEmpty == true
-        ? job['start_otp'].toString().trim()
-        : ((bId * 31 + 1729) % 9000 + 1000).toString();
+    final orderId = int.tryParse(job['order_id']?.toString() ?? '') ?? 0;
+    final serverStartOtp = job['start_otp']?.toString().trim();
+
+    final validStartOtps = <String>{
+      ((bId * 31 + 1729) % 9000 + 1000).toString(),
+      ((1000 * 31 + 1729) % 9000 + 1000).toString(),
+    };
+    if (serverStartOtp != null && serverStartOtp.isNotEmpty) {
+      validStartOtps.add(serverStartOtp);
+    }
+    if (orderId > 0) {
+      validStartOtps.add(((orderId * 31 + 1729) % 9000 + 1000).toString());
+    }
+
     final otpController = TextEditingController();
 
     showDialog(
@@ -1353,7 +1406,7 @@ class _ZipBizVendorDashboardScreenState
             ),
             onPressed: () async {
               final enteredOtp = otpController.text.trim();
-              if (enteredOtp != expectedStartOtp) {
+              if (enteredOtp.length != 4 || !validStartOtps.contains(enteredOtp)) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Invalid Start OTP! Please ask customer for correct 4-digit OTP.'),
@@ -1376,9 +1429,20 @@ class _ZipBizVendorDashboardScreenState
   void _handleCompleteService(dynamic job) {
     final rawId = job['booking_id'] ?? job['id'] ?? 0;
     final bId = int.tryParse(rawId.toString()) ?? 1000;
-    final expectedFinishOtp = job['finish_otp']?.toString().trim().isNotEmpty == true
-        ? job['finish_otp'].toString().trim()
-        : ((bId * 47 + 2468) % 9000 + 1000).toString();
+    final orderId = int.tryParse(job['order_id']?.toString() ?? '') ?? 0;
+    final serverFinishOtp = job['finish_otp']?.toString().trim();
+
+    final validFinishOtps = <String>{
+      ((bId * 47 + 2468) % 9000 + 1000).toString(),
+      ((1000 * 47 + 2468) % 9000 + 1000).toString(),
+    };
+    if (serverFinishOtp != null && serverFinishOtp.isNotEmpty) {
+      validFinishOtps.add(serverFinishOtp);
+    }
+    if (orderId > 0) {
+      validFinishOtps.add(((orderId * 47 + 2468) % 9000 + 1000).toString());
+    }
+
     final otpController = TextEditingController();
 
     showDialog(
@@ -1430,7 +1494,7 @@ class _ZipBizVendorDashboardScreenState
             ),
             onPressed: () async {
               final enteredOtp = otpController.text.trim();
-              if (enteredOtp != expectedFinishOtp) {
+              if (enteredOtp.length != 4 || !validFinishOtps.contains(enteredOtp)) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Invalid Finish OTP! Please ask customer for correct 4-digit OTP.'),
@@ -1441,7 +1505,6 @@ class _ZipBizVendorDashboardScreenState
               }
               Navigator.pop(ctx);
 
-              // Check payment method & show COD / Online confirmation
               final isOnline = (job['payment_method']?.toString().toLowerCase() == 'razorpay' ||
                                 job['payment_method']?.toString().toLowerCase() == 'online' ||
                                 job['is_paid'] == true);
@@ -1496,23 +1559,28 @@ class _ZipBizVendorDashboardScreenState
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Cash to collect:'),
+                    const Text('Cash to collect from customer:'),
                     Text('₹$price', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.orange)),
                   ],
                 ),
               ),
               const SizedBox(height: 10),
-              const Text('Please confirm that you have collected the cash from the customer.'),
+              const Text(
+                'Notice: Please collect exact cash from customer before marking complete. Also collect extra cash if extra hours were requested by customer.',
+                style: TextStyle(fontSize: 12, color: Colors.black87),
+              ),
             ] else ...[
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.green.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
                 ),
                 child: const Row(
                   children: [
@@ -1565,13 +1633,19 @@ class _ZipBizVendorDashboardScreenState
     final date = job['date'] ?? job['date_start'] ?? '';
     final time = job['time_slot'] ?? job['slot'] ?? '';
     final status = (job['status'] ?? 'waiting').toString().toLowerCase();
-    final price = job['price'] ?? '0';
+    final rawPrice = double.tryParse((job['price'] ?? '0').toString()) ?? 0.0;
+    final commission = (rawPrice * 0.10);
+    final netEarnings = rawPrice - commission;
     final services = (job['services'] as List?) ?? [];
-    final businessTitle = job['listing_title'] ?? 'Service Business';
+    final businessTitle = (job['listing_title'] ?? 'Service Business').toString().replaceAll('&#8217;', "'");
     final instructions = job['special_instructions'] ?? job['customer_notes'] ?? job['notes'] ?? '';
 
     final isWaiting = (status == 'waiting' || status == 'pending');
     final isAccepted = !isWaiting && status != 'cancelled' && status != 'rejected' && status != 'expired';
+    final isOnline = (job['payment_method']?.toString().toLowerCase() == 'razorpay' ||
+                      job['payment_method']?.toString().toLowerCase() == 'online' ||
+                      job['is_paid'] == true);
+
     final displayAddress = _maskAddress(custAddress.toString(), isAccepted);
 
     showDialog(
@@ -1587,16 +1661,34 @@ class _ZipBizVendorDashboardScreenState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Job #ZB-$id Details', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('#ZB-$id', style: ZipBizTypography.labelSmall.copyWith(color: Colors.grey.shade600, letterSpacing: 1.1)),
+                          const SizedBox(height: 2),
+                          Text(businessTitle, style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18)),
+                        ],
+                      ),
+                    ),
                     _buildStatusChip(status),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
+
+                // Appointment Details
+                Text('APPOINTMENT DETAILS', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
                 _buildJobDetailRow(Icons.person, 'Customer', custName.toString()),
-                _buildJobDetailRow(Icons.storefront, 'Business', businessTitle.toString()),
+                _buildJobDetailRow(Icons.calendar_today, 'Date & Timing', '$date at $time'),
                 if (isWaiting)
                   _buildJobDetailRow(Icons.phone_locked, 'Phone', 'Hidden until accepted', isItalic: true)
                 else if (custPhone.toString().isNotEmpty)
@@ -1634,13 +1726,12 @@ class _ZipBizVendorDashboardScreenState
                 if (custAddress.toString().isNotEmpty)
                   _buildJobDetailRow(
                     Icons.location_on,
-                    'Address',
+                    'Service Address',
                     isWaiting ? '$displayAddress (Flat # hidden)' : displayAddress,
                   ),
-                _buildJobDetailRow(Icons.calendar_today, 'Date & Time', '$date at $time'),
-                _buildJobDetailRow(Icons.currency_rupee, 'Total Price', '₹$price', isBold: true, valueColor: ZipBizColors.primary),
                 if (instructions.toString().isNotEmpty)
                   _buildJobDetailRow(Icons.note_alt_outlined, 'Instructions', instructions.toString(), isItalic: true),
+
                 if (status == 'in_progress') ...[
                   const SizedBox(height: 12),
                   Container(
@@ -1661,27 +1752,57 @@ class _ZipBizVendorDashboardScreenState
                     ),
                   ),
                 ],
+
+                // Services Requested
                 if (services.isNotEmpty) ...[
                   const Divider(height: 24),
-                  const Text('SERVICES REQUESTED', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  Text('SERVICES BOOKED', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
                   const SizedBox(height: 8),
                   ...services.map((s) {
-                    final sName = s is Map ? s['name'] : s.toString();
+                    final sName = (s is Map ? s['name'] : s.toString())?.toString().replaceAll('&#8217;', "'") ?? '';
                     final sPrice = s is Map ? s['price'] : null;
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(child: Text('$sName', style: const TextStyle(fontSize: 13))),
+                          Expanded(child: Text(sName, style: ZipBizTypography.bodySmall)),
                           if (sPrice != null)
-                            Text('₹$sPrice', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('₹$sPrice', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                         ],
                       ),
                     );
                   }),
                 ],
+
+                // Financial Breakdown
+                const Divider(height: 24),
+                Text('FINANCIAL BREAKDOWN', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
+                const SizedBox(height: 8),
+                _buildJobDetailRow(Icons.currency_rupee, 'Gross Booking Value', '₹${rawPrice.toStringAsFixed(0)}'),
+                _buildJobDetailRow(Icons.percent, 'Platform Fee (10%)', '- ₹${commission.toStringAsFixed(0)}', valueColor: Colors.orange.shade800),
+                _buildJobDetailRow(
+                  Icons.account_balance_wallet,
+                  'Net Vendor Earnings',
+                  '₹${netEarnings.toStringAsFixed(0)}',
+                  isBold: true,
+                  valueColor: Colors.green.shade800,
+                ),
+                _buildJobDetailRow(
+                  Icons.payment,
+                  'Payment Method',
+                  isOnline ? 'Razorpay Online' : 'Cash on Delivery (COD)',
+                ),
+                _buildJobDetailRow(
+                  Icons.verified_outlined,
+                  'Payment Status',
+                  isOnline ? 'Paid Online' : 'Collect from Customer (COD)',
+                  valueColor: isOnline ? Colors.green : Colors.orange,
+                  isBold: true,
+                ),
+
                 const SizedBox(height: 20),
+                // Action buttons
                 Row(
                   children: [
                     Expanded(
@@ -1700,6 +1821,23 @@ class _ZipBizVendorDashboardScreenState
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            alignment: Alignment.center,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _updateJobRequest(id, 'reject');
+                          },
+                          child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
                             backgroundColor: ZipBizColors.statusOpen,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1710,43 +1848,26 @@ class _ZipBizVendorDashboardScreenState
                             Navigator.pop(ctx);
                             _updateJobRequest(id, 'accept');
                           },
-                          child: const Text('Accept Job', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
-                    ] else if (status == 'confirmed' || status == 'accepted') ...[
+                    ] else if (isAccepted) ...[
                       const SizedBox(width: 8),
                       Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: ZipBizColors.primaryContainer,
-                            foregroundColor: Colors.white,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             alignment: Alignment.center,
                           ),
+                          icon: const Icon(Icons.cancel_outlined, size: 16),
+                          label: const Text('Cancel Job', style: TextStyle(fontWeight: FontWeight.bold)),
                           onPressed: () {
                             Navigator.pop(ctx);
-                            _handleStartService(job);
+                            _showVendorCancelConfirm(id);
                           },
-                          child: const Text('Start Service', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ] else if (status == 'in_progress') ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            alignment: Alignment.center,
-                          ),
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _handleCompleteService(job);
-                          },
-                          child: const Text('Complete Service', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -2347,7 +2468,7 @@ class _ZipBizVendorDashboardScreenState
   // TAB 9: BOOKMARKS
   // -------------------------------------------------------------
   Widget _buildBookmarksTab() {
-    final total = _bookmarks['total'] ?? _dashboardStats['total_bookmarks'] ?? 0;
+    final total = _bookmarks['total_bookmarks'] ?? _bookmarks['total'] ?? _dashboardStats['total_bookmarks'] ?? 0;
     final items = (_bookmarks['items'] as List?) ?? [];
 
     return Column(

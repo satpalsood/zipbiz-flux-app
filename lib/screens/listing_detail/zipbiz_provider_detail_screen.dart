@@ -1,7 +1,10 @@
 import '../../core/state/zipbiz_bookmark_manager.dart';
 import '../services/zipbiz_services_directory_screen.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/state/zipbiz_cart_manager.dart';
 import '../../common/config.dart';
 import '../../common/constants.dart';
 import '../../core/api/zipbiz_api_service.dart';
@@ -102,13 +105,23 @@ class _ZipBizProviderDetailScreenState
     final faqs = <Map<String, String>>[];
     try {
       for (var item in widget.product.metaData) {
-        if (item['key'] == '_faq' || item['key'] == 'faq') {
-          final val = item['value'];
+        final k = item['key']?.toString();
+        if (k == '_faq' || k == 'faq' || k == '_listing_faq' || k == 'listing_faq') {
+          var val = item['value'];
+          if (val is String && val.trim().startsWith('[') && val.trim().endsWith(']')) {
+            try {
+              val = jsonDecode(val);
+            } catch (_) {}
+          }
           if (val is List) {
             for (var f in val) {
               if (f is Map) {
-                final q = f['question']?.toString() ?? f['title']?.toString() ?? '';
-                final a = f['answer']?.toString() ?? f['content']?.toString() ?? '';
+                final q = (f['question']?.toString() ?? f['title']?.toString() ?? '')
+                    .replaceAll('&#8217;', "'")
+                    .replaceAll('&amp;', '&');
+                final a = (f['answer']?.toString() ?? f['content']?.toString() ?? '')
+                    .replaceAll('&#8217;', "'")
+                    .replaceAll('&amp;', '&');
                 if (q.isNotEmpty) {
                   faqs.add({'question': q, 'answer': a});
                 }
@@ -119,6 +132,41 @@ class _ZipBizProviderDetailScreenState
       }
     } catch (_) {}
     return faqs;
+  }
+
+  List<Map<String, dynamic>> _getCoupons() {
+    bool showCoupons = true;
+    for (var item in widget.product.metaData) {
+      if (item['key'] == 'show_coupons' || item['key'] == '_show_coupons') {
+        final v = item['value'];
+        if (v == false || v == 'off' || v == '0' || v == 0) {
+          showCoupons = false;
+        }
+      }
+    }
+    if (!showCoupons) return [];
+
+    final coupons = <Map<String, dynamic>>[];
+    try {
+      for (var item in widget.product.metaData) {
+        if (item['key'] == 'coupons' || item['key'] == '_coupons') {
+          var val = item['value'];
+          if (val is String && val.trim().startsWith('[') && val.trim().endsWith(']')) {
+            try {
+              val = jsonDecode(val);
+            } catch (_) {}
+          }
+          if (val is List) {
+            for (var c in val) {
+              if (c is Map) {
+                coupons.add(Map<String, dynamic>.from(c));
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return coupons;
   }
 
   void _initPackages() {
@@ -209,7 +257,18 @@ class _ZipBizProviderDetailScreenState
         if (v == true || v == 'on' || v == '1' || v == 1) isAccepting = false;
       }
     }
-    final startsAt = (p.price != null && p.price!.isNotEmpty) ? '₹${p.price}' : '₹499';
+    double minPrice = double.infinity;
+    for (final pkg in _packages) {
+      final pr = double.tryParse(pkg['price']?.toString() ?? '');
+      if (pr != null && pr > 0 && pr < minPrice) {
+        minPrice = pr;
+      }
+    }
+    if (minPrice == double.infinity) {
+      minPrice = double.tryParse(p.price ?? p.regularPrice ?? '499') ?? 499.0;
+    }
+    final startsAt = '₹${minPrice.toStringAsFixed(0)}';
+    final isVerified = p.verified == true || p.isFeatured == true || p.featured == 'on' || p.featured == '1';
 
     return Scaffold(
       backgroundColor: ZipBizColors.surface,
@@ -318,25 +377,26 @@ class _ZipBizProviderDetailScreenState
                             ),
                           ),
                         ),
-                        // Tricity Verified Badge
-                        Positioned(
-                          bottom: 12,
-                          left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.92),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.verified, size: 16, color: ZipBizColors.primaryContainer),
-                                SizedBox(width: 5),
-                                Text('Tricity Verified Partner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ZipBizColors.onSurface)),
-                              ],
+                        // Verified Badge
+                        if (isVerified)
+                          Positioned(
+                            bottom: 12,
+                            left: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.92),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.verified, size: 16, color: ZipBizColors.primaryContainer),
+                                  SizedBox(width: 5),
+                                  Text('Verified', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ZipBizColors.onSurface)),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -591,6 +651,100 @@ class _ZipBizProviderDetailScreenState
                   },
                 ),
 
+                // Available Coupons
+                Builder(
+                  builder: (context) {
+                    final coupons = _getCoupons();
+                    if (coupons.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_offer_outlined, size: 20, color: Colors.purple),
+                              const SizedBox(width: 8),
+                              Text('Available Offers & Coupons', style: ZipBizTypography.headlineSmall),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          height: 95,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: coupons.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 10),
+                            itemBuilder: (context, idx) {
+                              final c = coupons[idx];
+                              final code = c['code']?.toString() ?? 'COUPON';
+                              final amount = c['amount']?.toString() ?? c['discount']?.toString() ?? '10';
+                              final type = c['discount_type']?.toString() ?? c['type']?.toString() ?? 'percent';
+                              final discountText = type == 'percent' ? '$amount% OFF' : '₹$amount OFF';
+                              final desc = c['description']?.toString() ?? 'On all services';
+
+                              return Container(
+                                width: 220,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.purple.shade50.withOpacity(0.5),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.purple.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(discountText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.purple)),
+                                          const SizedBox(height: 2),
+                                          Text(desc, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.black87)),
+                                        ],
+                                      ),
+                                    ),
+                                    InkWell(
+                                      onTap: () {
+                                        Clipboard.setData(ClipboardData(text: code));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Coupon code "$code" copied!'),
+                                            backgroundColor: Colors.purple,
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.purple.shade400),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(code, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.purple)),
+                                            const Text('TAP TO COPY', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.grey)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
                 // FAQs (Dynamic from API; hidden if empty)
                 Builder(
                   builder: (context) {
@@ -667,14 +821,16 @@ class _ZipBizProviderDetailScreenState
                     child: ZipBizButton(
                       text: isAccepting ? 'Book Service' : 'Currently Offline',
                       icon: isAccepting ? Icons.calendar_month : Icons.block,
-                      height: 50,
-                      borderRadius: 12,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      height: 42,
+                      borderRadius: 10,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       backgroundColor: isAccepting ? ZipBizColors.primaryContainer : Colors.grey.shade400,
                       onPressed: isAccepting ? () {
                         final selectedItems = _packages
                             .where((pkg) => _selectedPackageNames.contains(pkg['name']))
                             .toList();
+
+                        ZipBizCartManager().syncFromSelectedServices(p, selectedItems);
 
                         Navigator.push(
                           context,

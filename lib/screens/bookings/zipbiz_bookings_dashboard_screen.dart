@@ -296,7 +296,7 @@ class _ZipBizBookingsDashboardScreenState
       statusBg = const Color(0xFFD1FAE5);
       statusIcon = Icons.task_alt_rounded;
     } else if (isCancelled) {
-      statusLabel = 'Declined';
+      statusLabel = 'Cancelled';
       statusColor = const Color(0xFFEF4444);
       statusBg = const Color(0xFFFEE2E2);
       statusIcon = Icons.cancel_rounded;
@@ -773,22 +773,42 @@ class _ZipBizBookingsDashboardScreenState
               'Appointments can only be cancelled at least 1 hour before the scheduled service time. '
               'Since your appointment is scheduled soon, please reach out directly to customer support for emergency assistance.',
             ),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ZipBizColors.primaryContainer,
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.headset_mic_outlined, size: 16),
-                label: const Text('Contact Support'),
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Tools.launchURL('https://wa.me/917009218289?text=${Uri.encodeComponent("Hello ZipBiz Support, I need assistance cancelling booking #ZB-${booking.id ?? booking.orderId ?? ""}")}');
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Center(child: Text('Close')),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ZipBizColors.primaryContainer,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.headset_mic_outlined, size: 16),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Contact Support', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Tools.launchURL('https://wa.me/917009218289?text=${Uri.encodeComponent("Hello ZipBiz Support, I need assistance cancelling booking #ZB-${booking.id ?? booking.orderId ?? ""}")}');
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

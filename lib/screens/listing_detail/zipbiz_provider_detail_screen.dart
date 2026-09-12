@@ -830,7 +830,7 @@ class _ZipBizProviderDetailScreenState
                             .where((pkg) => _selectedPackageNames.contains(pkg['name']))
                             .toList();
 
-                        ZipBizCartManager().syncFromSelectedServices(p, selectedItems);
+                        ZipBizCartManager.syncFromSelectedServices(p, selectedItems);
 
                         Navigator.push(
                           context,

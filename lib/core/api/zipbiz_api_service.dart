@@ -211,6 +211,7 @@ class ZipBizApiService {
     }
     final body = bodyMap.isNotEmpty ? jsonEncode(bodyMap) : null;
     final response = await http.post(url, headers: _getHeaders(user), body: body);
+    final data = jsonDecode(response.body);
     if ((response.statusCode == 200 || response.statusCode == 201) && data['success'] == true) {
       return true;
     } else {

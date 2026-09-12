@@ -58,6 +58,10 @@ class ZipBizCartManager {
     cartCountNotifier.value = _items.length;
   }
 
+  void syncFromSelectedServices(Product product, List<Map<String, dynamic>> services) {
+    ZipBizCartManager.syncFromSelectedServices(product, services);
+  }
+
   static void addItem(ZipBizCartItem item, BuildContext context) {
     // Avoid duplicate service additions of same item
     final exists = _items.any((i) => i.id == item.id);

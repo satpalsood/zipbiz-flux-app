@@ -155,6 +155,7 @@ class Product {
   double? long;
   List<dynamic>? listingMenu = [];
   ListingSlots? slots;
+  ListingSlots? get listingSlots => slots;
   bool? listingBookingStatus;
 
   String? mVideoUrl;

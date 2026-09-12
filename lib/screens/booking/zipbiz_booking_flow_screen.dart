@@ -71,8 +71,8 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
     // Try parsing vendor's configured slots from listing metadata or listingSlots
     try {
       final weekdayIdx = _selectedDate.weekday % 7; // 0 for Sun or Listeo 0..6
-      if (widget.product.listingSlots != null && widget.product.listingSlots!.timeSlots.isNotEmpty) {
-        final allDays = widget.product.listingSlots!.timeSlots;
+      if (widget.product.slots != null && widget.product.slots!.timeSlots.isNotEmpty) {
+        final allDays = widget.product.slots!.timeSlots;
         if (weekdayIdx < allDays.length && allDays[weekdayIdx].isNotEmpty) {
           final daySlots = allDays[weekdayIdx].map((s) => s.toString().split('|')[0].trim()).toList();
           if (daySlots.isNotEmpty) return daySlots;

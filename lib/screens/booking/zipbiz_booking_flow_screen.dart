@@ -8,6 +8,7 @@ import '../../common/constants.dart';
 import '../../core/api/zipbiz_api_service.dart';
 import '../../core/theme/zipbiz_colors.dart';
 import '../../core/theme/zipbiz_typography.dart';
+import '../../models/entities/listing_slots.dart';
 import '../../models/entities/product.dart';
 import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
@@ -66,6 +67,36 @@ class _ZipBizBookingFlowScreenState extends State<ZipBizBookingFlowScreen> {
     if (_availableSlots.isNotEmpty) {
       return _availableSlots.map((s) => s['time']?.toString() ?? '').where((s) => s.isNotEmpty).toList();
     }
+
+    // Try parsing vendor's configured slots from listing metadata or listingSlots
+    try {
+      final weekdayIdx = _selectedDate.weekday % 7; // 0 for Sun or Listeo 0..6
+      if (widget.product.listingSlots != null && widget.product.listingSlots!.timeSlots.isNotEmpty) {
+        final allDays = widget.product.listingSlots!.timeSlots;
+        if (weekdayIdx < allDays.length && allDays[weekdayIdx].isNotEmpty) {
+          final daySlots = allDays[weekdayIdx].map((s) => s.toString().split('|')[0].trim()).toList();
+          if (daySlots.isNotEmpty) return daySlots;
+        } else if (allDays.isNotEmpty && allDays.first.isNotEmpty) {
+          return allDays.first.map((s) => s.toString().split('|')[0].trim()).toList();
+        }
+      }
+
+      for (var item in widget.product.metaData) {
+        final k = item['key']?.toString();
+        if (k == '_slots' || k == 'slots') {
+          final raw = item['value'];
+          final parsed = ListingSlots.fromJson(raw);
+          if (parsed.timeSlots.isNotEmpty) {
+            if (weekdayIdx < parsed.timeSlots.length && parsed.timeSlots[weekdayIdx].isNotEmpty) {
+              return parsed.timeSlots[weekdayIdx].map((s) => s.toString().split('|')[0].trim()).toList();
+            } else if (parsed.timeSlots.first.isNotEmpty) {
+              return parsed.timeSlots.first.map((s) => s.toString().split('|')[0].trim()).toList();
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
     if (_slotInterval == 1) {
       return [
         '08:00 AM - 09:00 AM',

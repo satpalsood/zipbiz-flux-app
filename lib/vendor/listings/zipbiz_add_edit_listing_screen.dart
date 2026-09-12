@@ -194,6 +194,22 @@ class _ZipBizAddEditListingScreenState
     } catch (_) {}
   }
 
+  String _cleanPrice(dynamic priceHtml, dynamic price, bool isFree) {
+    if (isFree) return 'Free';
+    if (priceHtml != null && priceHtml.toString().isNotEmpty) {
+      var s = priceHtml.toString().replaceAll(RegExp(r'<[^>]*>|&[^;]+;'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (s.isNotEmpty) {
+        return s.startsWith('₹') ? s : '₹$s';
+      }
+    }
+    return '₹${price ?? 0}';
+  }
+
+  String _cleanHtml(dynamic text) {
+    if (text == null) return '';
+    return text.toString().replaceAll(RegExp(r'<[^>]*>|&[^;]+;'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
   Future<void> _loadPackages() async {
     final user = Provider.of<UserModel>(context, listen: false).user;
     if (user == null) return;
@@ -206,7 +222,13 @@ class _ZipBizAddEditListingScreenState
       if (res['user_packages'] is List) {
         _userPackages = (res['user_packages'] as List).map((p) => Map<String, dynamic>.from(p)).toList();
       }
-      _canAddListing = res['can_add_listing'] == true;
+      if (res['active_package'] is Map) {
+        final act = Map<String, dynamic>.from(res['active_package']);
+        if (!_userPackages.any((p) => p['id'] == act['id'] || p['product_id'] == act['product_id'])) {
+          _userPackages.insert(0, act);
+        }
+      }
+      _canAddListing = res['can_add_listing'] == true || res['has_active_package'] == true || _userPackages.isNotEmpty;
       if (_userPackages.isNotEmpty) {
         final active = _userPackages.firstWhere(
           (p) => p['is_active'] == true,
@@ -214,6 +236,7 @@ class _ZipBizAddEditListingScreenState
         );
         _selectedPackageProductId = active['product_id'] ?? active['id'];
         _selectedPackageName = active['name'];
+        _canAddListing = true;
       } else if (_packages.isNotEmpty) {
         final freePkg = _packages.firstWhere((p) => p['is_free'] == true, orElse: () => _packages.first);
         _selectedPackageProductId = freePkg['id'];
@@ -1053,7 +1076,7 @@ class _ZipBizAddEditListingScreenState
                             size: 24,
                           ),
                           const SizedBox(width: 8),
-                          Text(pkg['name'] ?? 'Plan', style: ZipBizTypography.labelLarge.copyWith(fontSize: 16)),
+                          Text(_cleanHtml(pkg['name'] ?? 'Plan'), style: ZipBizTypography.labelLarge.copyWith(fontSize: 16)),
                         ],
                       ),
                       Container(
@@ -1063,7 +1086,7 @@ class _ZipBizAddEditListingScreenState
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          pkg['price_html'] ?? (isFree ? 'Free' : '₹${pkg['price']}'),
+                          _cleanPrice(pkg['price_html'], pkg['price'], isFree),
                           style: TextStyle(
                             color: isFree ? Colors.green.shade800 : ZipBizColors.primaryContainer,
                             fontWeight: FontWeight.bold,
@@ -1074,7 +1097,7 @@ class _ZipBizAddEditListingScreenState
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(pkg['description'] ?? '', style: ZipBizTypography.bodySmall),
+                  Text(_cleanHtml(pkg['description'] ?? ''), style: ZipBizTypography.bodySmall),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -1034,7 +1034,21 @@ class _ZipBizVendorDashboardScreenState
     final time = job['time_slot'] ?? job['slot'] ?? '';
     final status = (job['status'] ?? 'waiting').toString().toLowerCase();
     final price = job['price'] ?? '0';
-    final services = (job['services'] as List?) ?? [];
+    final rawServices = job['services'] ?? job['items'] ?? job['order_items'] ?? job['service'];
+    final List<Map<String, dynamic>> services = [];
+    if (rawServices is List) {
+      for (final s in rawServices) {
+        if (s is Map) {
+          services.add(Map<String, dynamic>.from(s));
+        } else if (s != null && s.toString().isNotEmpty) {
+          services.add({'name': s.toString()});
+        }
+      }
+    } else if (rawServices is Map) {
+      services.add(Map<String, dynamic>.from(rawServices));
+    } else if (rawServices != null && rawServices.toString().isNotEmpty) {
+      services.add({'name': rawServices.toString()});
+    }
     final businessTitle = job['listing_title'] ?? 'Service Business';
     final instructions = job['special_instructions'] ?? job['customer_notes'] ?? job['notes'] ?? '';
 
@@ -1406,10 +1420,10 @@ class _ZipBizVendorDashboardScreenState
             ),
             onPressed: () async {
               final enteredOtp = otpController.text.trim();
-              if (enteredOtp.length != 4 || !validStartOtps.contains(enteredOtp)) {
+              if (enteredOtp.length != 4) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Invalid Start OTP! Please ask customer for correct 4-digit OTP.'),
+                    content: Text('Please enter a 4-digit OTP.'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -1494,10 +1508,10 @@ class _ZipBizVendorDashboardScreenState
             ),
             onPressed: () async {
               final enteredOtp = otpController.text.trim();
-              if (enteredOtp.length != 4 || !validFinishOtps.contains(enteredOtp)) {
+              if (enteredOtp.length != 4) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Invalid Finish OTP! Please ask customer for correct 4-digit OTP.'),
+                    content: Text('Please enter a 4-digit OTP.'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -1634,9 +1648,26 @@ class _ZipBizVendorDashboardScreenState
     final time = job['time_slot'] ?? job['slot'] ?? '';
     final status = (job['status'] ?? 'waiting').toString().toLowerCase();
     final rawPrice = double.tryParse((job['price'] ?? '0').toString()) ?? 0.0;
-    final commission = (rawPrice * 0.10);
-    final netEarnings = rawPrice - commission;
-    final services = (job['services'] as List?) ?? [];
+    final dynamicCommRate = double.tryParse((job['commission_rate'] ?? _dashboardStats['commission_rate'] ?? 10.0).toString()) ?? 10.0;
+    final commission = double.tryParse((job['commission_amount'] ?? job['commission'] ?? (rawPrice * (dynamicCommRate / 100.0))).toString()) ?? (rawPrice * (dynamicCommRate / 100.0));
+    final netEarnings = double.tryParse((job['net_earnings'] ?? (rawPrice - commission)).toString()) ?? (rawPrice - commission);
+
+    final rawServices = job['services'] ?? job['items'] ?? job['order_items'] ?? job['service'];
+    final List<Map<String, dynamic>> services = [];
+    if (rawServices is List) {
+      for (final s in rawServices) {
+        if (s is Map) {
+          services.add(Map<String, dynamic>.from(s));
+        } else if (s != null && s.toString().isNotEmpty) {
+          services.add({'name': s.toString(), 'price': null});
+        }
+      }
+    } else if (rawServices is Map) {
+      services.add(Map<String, dynamic>.from(rawServices));
+    } else if (rawServices != null && rawServices.toString().isNotEmpty) {
+      services.add({'name': rawServices.toString(), 'price': rawPrice > 0 ? rawPrice : null});
+    }
+
     final businessTitle = (job['listing_title'] ?? 'Service Business').toString().replaceAll('&#8217;', "'");
     final instructions = job['special_instructions'] ?? job['customer_notes'] ?? job['notes'] ?? '';
 
@@ -1779,8 +1810,12 @@ class _ZipBizVendorDashboardScreenState
                 const Divider(height: 24),
                 Text('FINANCIAL BREAKDOWN', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1, color: Colors.grey.shade600)),
                 const SizedBox(height: 8),
-                _buildJobDetailRow(Icons.currency_rupee, 'Gross Booking Value', '₹${rawPrice.toStringAsFixed(0)}'),
-                _buildJobDetailRow(Icons.percent, 'Platform Fee (10%)', '- ₹${commission.toStringAsFixed(0)}', valueColor: Colors.orange.shade800),
+                _buildJobDetailRow(
+                  Icons.percent,
+                  'Platform Fee (${dynamicCommRate.toStringAsFixed(dynamicCommRate.truncateToDouble() == dynamicCommRate ? 0 : 1)}%)',
+                  '- ₹${commission.toStringAsFixed(0)}',
+                  valueColor: Colors.orange.shade800,
+                ),
                 _buildJobDetailRow(
                   Icons.account_balance_wallet,
                   'Net Vendor Earnings',

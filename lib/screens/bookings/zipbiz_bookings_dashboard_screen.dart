@@ -464,8 +464,12 @@ class _ZipBizBookingsDashboardScreenState
 
   void _showBookingDetailsDialog(ListingBooking booking) {
     final bId = int.tryParse(booking.id?.toString() ?? booking.orderId?.toString() ?? '') ?? 1000;
-    final startOtp = ((bId * 31 + 1729) % 9000 + 1000).toString();
-    final finishOtp = ((bId * 47 + 2468) % 9000 + 1000).toString();
+    final startOtp = (booking.startOtp != null && booking.startOtp!.trim().isNotEmpty)
+        ? booking.startOtp!.trim()
+        : ((bId * 31 + 1729) % 9000 + 1000).toString();
+    final finishOtp = (booking.finishOtp != null && booking.finishOtp!.trim().isNotEmpty)
+        ? booking.finishOtp!.trim()
+        : ((bId * 47 + 2468) % 9000 + 1000).toString();
 
     final status = (booking.status ?? 'waiting').toUpperCase();
     final isPaid = (booking.paymentMethod?.toLowerCase() == 'razorpay' &&

@@ -51,6 +51,7 @@ class _ZipBizServicesDirectoryScreenState
   final TextEditingController _searchController = TextEditingController();
   String? _selectedCategory;
   bool _isLoading = false;
+  bool _isServerCategoryFiltered = false;
   List<Product> _allServices = [];
 
   // The 8 Listeo Service Categories
@@ -170,6 +171,7 @@ class _ZipBizServicesDirectoryScreenState
     try {
       // If a category is selected, find its corresponding Category ID from CategoryModel if loaded
       String? categoryId;
+      bool isPreFiltered = false;
       if (_selectedCategory != null) {
         final categoryModel =
             Provider.of<CategoryModel>(context, listen: false);
@@ -194,6 +196,7 @@ class _ZipBizServicesDirectoryScreenState
         );
         if (matched != null) {
           categoryId = matched.id;
+          isPreFiltered = true;
         }
       }
 
@@ -207,6 +210,7 @@ class _ZipBizServicesDirectoryScreenState
       if (mounted) {
         setState(() {
           _allServices = results ?? [];
+          _isServerCategoryFiltered = isPreFiltered;
           _isLoading = false;
         });
       }
@@ -220,42 +224,51 @@ class _ZipBizServicesDirectoryScreenState
   List<Product> get _filteredServices {
     var list = _allServices;
 
-    // 1. Strict Category Matching
-    if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+    // 1. Category Matching (Only filter client-side if server did not already pre-filter by categoryId)
+    if (_selectedCategory != null && _selectedCategory!.isNotEmpty && !_isServerCategoryFiltered) {
       final cat = _selectedCategory!.trim().toLowerCase();
 
       list = list.where((p) {
         final pCat = (p.categoryName ?? '').toLowerCase().trim();
         final pType = (p.type ?? '').toLowerCase().trim();
         final name = (p.name ?? '').toLowerCase();
+        final desc = (p.description ?? '').toLowerCase();
+
+        // Check if any product category object matches
+        final hasCatMatch = p.categories.any((c) {
+          final cName = (c.name ?? '').toLowerCase();
+          final cSlug = (c.slug ?? '').toLowerCase();
+          return cName.contains(cat) || cSlug.contains(cat) || cat.contains(cName);
+        });
+        if (hasCatMatch) return true;
 
         if (cat == 'maid') {
           // Strictly maid services, exclude deep cleaning
-          return (pCat.contains('maid') || pType.contains('maid') || name.contains('maid')) &&
+          return (pCat.contains('maid') || pType.contains('maid') || name.contains('maid') || desc.contains('maid')) &&
                  !name.contains('deep clean') && !pCat.contains('cleaner');
         } else if (cat == 'cleaner') {
           // Strictly cleaning services, exclude maid
-          return (pCat.contains('clean') || pType.contains('clean') || name.contains('clean')) &&
+          return (pCat.contains('clean') || pType.contains('clean') || name.contains('clean') || desc.contains('clean')) &&
                  !name.contains('maid') && !pCat.contains('maid');
         } else if (cat == 'electrician') {
-          return pCat.contains('electr') || pType.contains('electr') || name.contains('electr');
+          return pCat.contains('electr') || pType.contains('electr') || name.contains('electr') || desc.contains('electr');
         } else if (cat == 'plumber') {
-          return pCat.contains('plumb') || pType.contains('plumb') || name.contains('plumb');
+          return pCat.contains('plumb') || pType.contains('plumb') || name.contains('plumb') || desc.contains('plumb');
         } else if (cat.contains('salon') || cat.contains('beauty')) {
-          return pCat.contains('salon') || pCat.contains('beauty') || name.contains('salon') || name.contains('beauty') || name.contains('parlour');
+          return pCat.contains('salon') || pCat.contains('beauty') || name.contains('salon') || name.contains('beauty') || name.contains('parlour') || desc.contains('salon');
         } else if (cat == 'appliance') {
-          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('appliance') || name.contains('repair') || name.contains('ac') || name.contains('refrigerator') || name.contains('washing machine') || name.contains('ro');
+          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('appliance') || name.contains('repair') || name.contains('ac') || desc.contains('appliance');
         } else if (cat == 'carpenter') {
-          return pCat.contains('carpent') || pType.contains('carpent') || name.contains('carpent');
+          return pCat.contains('carpent') || pType.contains('carpent') || name.contains('carpent') || desc.contains('carpent');
         } else if (cat.contains('care')) {
-          return pCat.contains('care') || pType.contains('care') || name.contains('care') || name.contains('giver') || name.contains('elderly') || name.contains('nurse');
+          return pCat.contains('care') || pType.contains('care') || name.contains('care') || name.contains('giver') || name.contains('elderly') || desc.contains('care');
         } else {
-          return pCat == cat || pType == cat || name.contains(cat);
+          return pCat.contains(cat) || pType.contains(cat) || name.contains(cat) || desc.contains(cat);
         }
       }).toList();
     }
 
-    // 2. Strict Location Filtering
+    // 2. Location Filtering
     final activeLoc = _selectedRegion.toLowerCase().trim();
     final searchTxt = _searchController.text.toLowerCase().trim();
     final targetLocStr = searchTxt.contains('mohali') ? 'mohali' :
@@ -286,7 +299,11 @@ class _ZipBizServicesDirectoryScreenState
               metaLoc += ' ${(m['value'] ?? '').toString().toLowerCase()}';
             }
           }
-          final combined = '$loc $tagLine $metaLoc';
+          final combined = '$loc $tagLine $metaLoc'.trim();
+          // Keep listing if it has no explicit conflicting city or matches Tricity/Punjab/Chandigarh/Mohali
+          if (combined.isEmpty || combined.contains('tricity') || combined.contains('all') || combined.contains('punjab') || combined.contains('chandigarh') || combined.contains('mohali') || combined.contains('panchkula')) {
+            return true;
+          }
           return combined.contains(filterCity!);
         }).toList();
       }

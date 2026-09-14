@@ -6,6 +6,8 @@ import '../../common/config.dart' show kProductCard;
 import '../../common/constants.dart';
 import '../../models/category/category_model.dart';
 import '../../models/entities/product.dart';
+import '../../models/entities/menu.dart';
+import '../../models/entities/menu_price.dart';
 import '../../models/user_model.dart';
 import '../../routes/flux_navigate.dart';
 import '../../services/index.dart';

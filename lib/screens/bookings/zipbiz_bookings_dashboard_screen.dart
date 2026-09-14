@@ -73,12 +73,19 @@ class _ZipBizBookingsDashboardScreenState
 
     setState(() => _isLoading = true);
     try {
-      final list1Future = Services().api.getBooking(userId: user.id, page: 1, perPage: 50).catchError((_) => <ListingBooking>[]);
-      final list2Future = ZipBizApiService().getCustomerBookings(user: user, status: 'all').catchError((_) => <dynamic>[]);
+      List<ListingBooking> list1 = [];
+      try {
+        final res = await Services().api.getBooking(userId: user.id, page: 1, perPage: 50);
+        if (res != null) {
+          list1 = res;
+        }
+      } catch (_) {}
 
-      final results = await Future.wait([list1Future, list2Future]);
-      final list1 = (results[0] as List<ListingBooking>?) ?? [];
-      final list2Raw = (results[1] as List<dynamic>?) ?? [];
+      List<dynamic> list2Raw = [];
+      try {
+        final res = await ZipBizApiService().getCustomerBookings(user: user, status: 'all');
+        list2Raw = res;
+      } catch (_) {}
 
       final mergedBookings = <String, ListingBooking>{};
       for (final b in list1) {

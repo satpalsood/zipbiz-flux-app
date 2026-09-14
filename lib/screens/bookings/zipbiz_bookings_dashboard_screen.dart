@@ -59,16 +59,53 @@ class _ZipBizBookingsDashboardScreenState
     }
   }
 
+  String _formatBookingId(ListingBooking booking) {
+    final oId = (booking.orderId ?? '').trim();
+    if (oId.isNotEmpty && oId != '0') return '#$oId';
+    final bId = (booking.id ?? '').trim();
+    if (bId.isNotEmpty && bId != '0') return '#$bId';
+    return '';
+  }
+
   Future<void> _loadBookings() async {
     final user = Provider.of<UserModel>(context, listen: false).user;
     if (user == null) return;
 
     setState(() => _isLoading = true);
     try {
-      final results = await Services().api.getBooking(userId: user.id, page: 1, perPage: 50);
+      final list1Future = Services().api.getBooking(userId: user.id, page: 1, perPage: 50).catchError((_) => <ListingBooking>[]);
+      final list2Future = ZipBizApiService().getCustomerBookings(user: user, status: 'all').catchError((_) => <dynamic>[]);
+
+      final results = await Future.wait([list1Future, list2Future]);
+      final list1 = (results[0] as List<ListingBooking>?) ?? [];
+      final list2Raw = (results[1] as List<dynamic>?) ?? [];
+
+      final mergedBookings = <String, ListingBooking>{};
+      for (final b in list1) {
+        final key = (b.id != null && b.id!.isNotEmpty && b.id != '0') ? b.id! : (b.orderId ?? UniqueKey().toString());
+        mergedBookings[key] = b;
+      }
+      for (final item in list2Raw) {
+        if (item is Map) {
+          final b = ListingBooking.fromJson(item);
+          final key = (b.id != null && b.id!.isNotEmpty && b.id != '0') ? b.id! : (b.orderId ?? UniqueKey().toString());
+          if (mergedBookings.containsKey(key)) {
+            final existing = mergedBookings[key]!;
+            if ((existing.startOtp == null || existing.startOtp!.isEmpty) && b.startOtp != null) {
+              existing.startOtp = b.startOtp;
+            }
+            if ((existing.finishOtp == null || existing.finishOtp!.isEmpty) && b.finishOtp != null) {
+              existing.finishOtp = b.finishOtp;
+            }
+          } else {
+            mergedBookings[key] = b;
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
-          _allBookings = results ?? [];
+          _allBookings = mergedBookings.values.toList();
           _isLoading = false;
         });
         _refreshController.refreshCompleted();
@@ -340,7 +377,7 @@ class _ZipBizBookingsDashboardScreenState
                     ],
                   ),
                 ),
-                Text('#ZB-${booking.id ?? booking.orderId ?? ""}', style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1)),
+                Text(_formatBookingId(booking), style: ZipBizTypography.labelSmall.copyWith(letterSpacing: 1.1)),
               ],
             ),
             const SizedBox(height: 10),
@@ -463,13 +500,15 @@ class _ZipBizBookingsDashboardScreenState
   }
 
   void _showBookingDetailsDialog(ListingBooking booking) {
-    final bId = int.tryParse(booking.id?.toString() ?? booking.orderId?.toString() ?? '') ?? 1000;
+    final oId = int.tryParse(booking.orderId?.toString() ?? '') ?? 0;
+    final bIdVal = int.tryParse(booking.id?.toString() ?? '') ?? 0;
+    final seed = oId > 0 ? oId : (bIdVal > 0 ? bIdVal : 1000);
     final startOtp = (booking.startOtp != null && booking.startOtp!.trim().isNotEmpty)
         ? booking.startOtp!.trim()
-        : ((bId * 31 + 1729) % 9000 + 1000).toString();
+        : ((seed * 31 + 1729) % 9000 + 1000).toString();
     final finishOtp = (booking.finishOtp != null && booking.finishOtp!.trim().isNotEmpty)
         ? booking.finishOtp!.trim()
-        : ((bId * 47 + 2468) % 9000 + 1000).toString();
+        : ((seed * 47 + 2468) % 9000 + 1000).toString();
 
     final status = (booking.status ?? 'waiting').toUpperCase();
     final isPaid = (booking.paymentMethod?.toLowerCase() == 'razorpay' &&
@@ -520,7 +559,7 @@ class _ZipBizBookingsDashboardScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('#ZB-${booking.id ?? booking.orderId ?? ""}', style: ZipBizTypography.labelSmall.copyWith(color: Colors.grey.shade600, letterSpacing: 1.1)),
+                          Text(_formatBookingId(booking), style: ZipBizTypography.labelSmall.copyWith(color: Colors.grey.shade600, letterSpacing: 1.1)),
                           const SizedBox(height: 2),
                           Text(booking.title ?? 'Service Appointment', style: ZipBizTypography.headlineMedium.copyWith(fontSize: 18)),
                         ],
@@ -808,7 +847,7 @@ class _ZipBizBookingsDashboardScreenState
                       ),
                       onPressed: () {
                         Navigator.pop(ctx);
-                        Tools.launchURL('https://wa.me/917009218289?text=${Uri.encodeComponent("Hello ZipBiz Support, I need assistance cancelling booking #ZB-${booking.id ?? booking.orderId ?? ""}")}');
+                        Tools.launchURL('https://wa.me/917009218289?text=${Uri.encodeComponent("Hello ZipBiz Support, I need assistance cancelling booking ${_formatBookingId(booking)}") }');
                       },
                     ),
                   ),
@@ -826,7 +865,7 @@ class _ZipBizBookingsDashboardScreenState
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Cancel Appointment?'),
-        content: Text('Are you sure you want to cancel booking #ZB-${booking.id ?? booking.orderId ?? ""}? Cancellation is allowed up to 1 hour before scheduled time.'),
+        content: Text('Are you sure you want to cancel booking ${_formatBookingId(booking)}? Cancellation is allowed up to 1 hour before scheduled time.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep Booking')),
           TextButton(

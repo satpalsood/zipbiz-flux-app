@@ -94,20 +94,8 @@ class ZipBiz_Bookings {
 
     public static function get_bookings_table() {
         global $wpdb;
-        // Check Listeo Core's native table first
-        $listeo_table = $wpdb->prefix . 'listeo_core_bookings_calendar';
-        if ($wpdb->get_var("SHOW TABLES LIKE '$listeo_table'") === $listeo_table) {
-            return $listeo_table;
-        }
-        $calendar_table = $wpdb->prefix . 'bookings_calendar';
-        if ($wpdb->get_var("SHOW TABLES LIKE '$calendar_table'") === $calendar_table) {
-            return $calendar_table;
-        }
-        $bookings_table = $wpdb->prefix . 'bookings';
-        if ($wpdb->get_var("SHOW TABLES LIKE '$bookings_table'") === $bookings_table) {
-            return $bookings_table;
-        }
-        return $calendar_table;
+        // Listeo Core exclusively uses {$wpdb->prefix}bookings_calendar
+        return $wpdb->prefix . 'bookings_calendar';
     }
 
     /**
@@ -123,11 +111,7 @@ class ZipBiz_Bookings {
         // 1. Immediately search the active primary bookings table
         $primary_table = self::get_bookings_table();
         if (!empty($primary_table)) {
-            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $primary_table WHERE id = %d", $booking_id), ARRAY_A);
-            if ($row && !empty($row['id'])) {
-                return array('row' => $row, 'table' => $primary_table, 'is_post' => false);
-            }
-            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $primary_table WHERE order_id = %d", $booking_id), ARRAY_A);
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $primary_table WHERE id = %d OR order_id = %d", $booking_id, $booking_id), ARRAY_A);
             if ($row && !empty($row['id'])) {
                 return array('row' => $row, 'table' => $primary_table, 'is_post' => false);
             }
@@ -395,50 +379,57 @@ class ZipBiz_Bookings {
             'created'        => current_time('mysql'),
         );
 
-        // Save in Listeo table if table exists
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-            $insert_data = array(
-                'bookings_author' => $user->ID,
-                'owner_id'        => $owner_id,
-                'listing_id'      => $listing_id,
-                'date_start'      => $start_dt,
-                'date_end'        => $end_dt,
-                'comment'         => json_encode($booking_data),
-                'type'            => 'reservation',
-                'order_id'        => $order_id,
-                'status'          => $initial_status,
-                'price'           => $final_total,
-                'created'         => current_time('mysql'),
-            );
-            $wpdb->insert($table_name, $insert_data);
-            $booking_id = $wpdb->insert_id;
+        // Direct insert into Listeo's core bookings_calendar
+        $insert_data = array(
+            'bookings_author' => $user->ID,
+            'owner_id'        => $owner_id,
+            'listing_id'      => $listing_id,
+            'date_start'      => $start_dt,
+            'date_end'        => $end_dt,
+            'comment'         => json_encode($booking_data),
+            'type'            => 'reservation',
+            'order_id'        => $order_id,
+            'status'          => $initial_status,
+            'price'           => $final_total,
+            'created'         => current_time('mysql'),
+        );
+        $wpdb->insert($table_name, $insert_data);
+        $booking_id = intval($wpdb->insert_id);
 
-            // Generate and persist OTPs in the comment JSON
-            if ($booking_id > 0) {
-                $start_otp = strval((($booking_id * 31 + 1729) % 9000) + 1000);
-                $finish_otp = strval((($booking_id * 47 + 2468) % 9000) + 1000);
-                $booking_data['start_otp'] = $start_otp;
-                $booking_data['finish_otp'] = $finish_otp;
-                $booking_data['booking_id'] = $booking_id;
-                $wpdb->update($table_name, array('comment' => json_encode($booking_data)), array('id' => $booking_id));
-            }
+        // If insert_id is 0, attempt fallback search by order_id
+        if ($booking_id <= 0 && $order_id > 0) {
+            $booking_id = intval($wpdb->get_var($wpdb->prepare("SELECT id FROM $table_name WHERE order_id = %d ORDER BY id DESC LIMIT 1", $order_id)));
+        }
 
-            // Trigger Listeo native booking calendar workflow
-            if ($booking_id && class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
-                Listeo_Core_Bookings_Calendar::set_booking_status($booking_id, $initial_status);
+        // Generate and persist OTPs in comment JSON & WooCommerce order
+        $start_otp = strval(((($booking_id > 0 ? $booking_id : ($order_id > 0 ? $order_id : 1000)) * 31 + 1729) % 9000) + 1000);
+        $finish_otp = strval(((($booking_id > 0 ? $booking_id : ($order_id > 0 ? $order_id : 1000)) * 47 + 2468) % 9000) + 1000);
+        $booking_data['start_otp'] = $start_otp;
+        $booking_data['finish_otp'] = $finish_otp;
+        $booking_data['booking_id'] = $booking_id;
+        $booking_data['id'] = $booking_id;
+        $booking_data['order_id'] = $order_id;
+
+        if ($booking_id > 0) {
+            $wpdb->update($table_name, array('comment' => json_encode($booking_data)), array('id' => $booking_id));
+        }
+
+        // Update WooCommerce order metadata
+        if ($order_id > 0 && function_exists('wc_get_order')) {
+            $wc_order = wc_get_order($order_id);
+            if ($wc_order) {
+                $wc_order->update_meta_data('booking_id', $booking_id);
+                $wc_order->update_meta_data('owner_id', $owner_id);
+                $wc_order->update_meta_data('listing_id', $listing_id);
+                $wc_order->update_meta_data('_start_otp', $start_otp);
+                $wc_order->update_meta_data('_finish_otp', $finish_otp);
+                $wc_order->save_meta_data();
             }
-        } else {
-            // Fallback to custom post type 'booking'
-            $booking_id = wp_insert_post(array(
-                'post_type'    => 'booking',
-                'post_title'   => 'Booking #' . $listing->post_title,
-                'post_status'  => 'publish',
-                'post_author'  => $user->ID,
-            ));
-            update_post_meta($booking_id, '_booking_data', $booking_data);
-            update_post_meta($booking_id, '_listing_id', $listing_id);
-            update_post_meta($booking_id, '_status', $initial_status);
-            update_post_meta($booking_id, '_price', $final_total);
+        }
+
+        // Trigger Listeo native booking calendar workflow if method exists
+        if ($booking_id > 0 && class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
+            Listeo_Core_Bookings_Calendar::set_booking_status($booking_id, $initial_status);
         }
 
         // Store address in user meta for future autofill
@@ -473,7 +464,9 @@ class ZipBiz_Bookings {
             )
         );
 
-        $booking_data['booking_id'] = $booking_id;
+        $booking_data['id'] = $booking_id > 0 ? $booking_id : $order_id;
+        $booking_data['booking_id'] = $booking_id > 0 ? $booking_id : $order_id;
+        $booking_data['order_id'] = $order_id;
         $booking_data['listing_title'] = $listing->post_title;
         $booking_data['listing_image'] = get_the_post_thumbnail_url($listing_id, 'medium') ?: (get_post_meta($listing_id, '_featured_image_url', true) ?: '');
 
@@ -783,6 +776,9 @@ class ZipBiz_Bookings {
         }
 
         $booking_id = intval($request['id']);
+        if ($booking_id <= 0) {
+            $booking_id = intval($request->get_param('order_id') ?: $request->get_param('booking_id'));
+        }
 
         $found = self::find_booking($booking_id);
         if (!$found || empty($found['row'])) {
@@ -861,6 +857,12 @@ class ZipBiz_Bookings {
             $user_id = intval($request->get_header('X-User-ID'));
         }
         if (!$user_id) {
+            $user = ZipBiz_REST_API::authenticate_user($request);
+            if ($user && !is_wp_error($user)) {
+                $user_id = $user->ID;
+            }
+        }
+        if (!$user_id) {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
 
@@ -870,7 +872,15 @@ class ZipBiz_Bookings {
         $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
         $offset = ($page - 1) * $per_page;
 
-        $where = "WHERE bookings_author = $user_id";
+        $where = "WHERE (bookings_author = $user_id OR comment LIKE '%\"user_id\":$user_id%' OR comment LIKE '%\"user_id\":\"$user_id\"%'";
+        // Also include orders placed by this customer
+        $cust_orders = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_type = 'shop_order' AND post_author = %d", $user_id));
+        if (!empty($cust_orders)) {
+            $order_ids_csv = implode(',', array_map('intval', $cust_orders));
+            $where .= " OR order_id IN ($order_ids_csv)";
+        }
+        $where .= ")";
+
         if ($status !== 'all') {
             if ($status === 'upcoming') {
                 $where .= " AND status IN ('confirmed', 'waiting', 'pending', 'in_progress', 'paid')";
@@ -884,8 +894,8 @@ class ZipBiz_Bookings {
         }
 
         $items = array();
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
-            $rows = $wpdb->get_results("SELECT * FROM $table_name $where ORDER BY id DESC LIMIT $offset, $per_page", ARRAY_A);
+        $rows = $wpdb->get_results("SELECT * FROM $table_name $where ORDER BY id DESC LIMIT $offset, $per_page", ARRAY_A);
+        if ($rows) {
             foreach ($rows as $r) {
                 $listing = get_post($r['listing_id']);
                 $raw_comment = $r['comment'] ?? '';

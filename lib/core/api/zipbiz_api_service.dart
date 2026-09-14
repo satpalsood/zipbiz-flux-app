@@ -197,12 +197,17 @@ class ZipBizApiService {
   Future<bool> updateVendorBookingStatus({
     required User user,
     required int bookingId,
+    int? orderId,
     required String action, // 'accept', 'reject', 'start', 'complete'
     String? otp,
     bool? paymentConfirmed,
   }) async {
-    final url = Uri.parse('$_baseUrl/vendor/bookings/$bookingId/$action');
-    final Map<String, dynamic> bodyMap = {};
+    final effectiveId = bookingId > 0 ? bookingId : (orderId ?? 0);
+    final url = Uri.parse('$_baseUrl/vendor/bookings/$effectiveId/$action');
+    final Map<String, dynamic> bodyMap = {
+      if (bookingId > 0) 'booking_id': bookingId,
+      if (orderId != null && orderId > 0) 'order_id': orderId,
+    };
     if (otp != null && otp.isNotEmpty) {
       bodyMap['otp'] = otp;
     }
@@ -211,11 +216,18 @@ class ZipBizApiService {
     }
     final body = bodyMap.isNotEmpty ? jsonEncode(bodyMap) : null;
     final response = await http.post(url, headers: _getHeaders(user), body: body);
-    final data = jsonDecode(response.body);
-    if ((response.statusCode == 200 || response.statusCode == 201) && data['success'] == true) {
+    Map<String, dynamic>? data;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        data = decoded;
+      }
+    } catch (_) {}
+
+    if ((response.statusCode == 200 || response.statusCode == 201) && (data?['success'] == true || data?['code'] == 'OK')) {
       return true;
     } else {
-      throw Exception(data['message'] ?? 'Failed to update booking status');
+      throw Exception(data?['message'] ?? 'Failed to update booking status (HTTP ${response.statusCode})');
     }
   }
 

@@ -529,10 +529,14 @@ class ZipBiz_Vendor {
     /**
      * Helper to verify booking ownership and update status
      */
-    private function update_booking_status($booking_id, $user_id, $new_status, $notify_title, $notify_msg) {
+    private function update_booking_status($booking_id, $user_id, $new_status, $notify_title, $notify_msg, $request = null) {
         global $wpdb;
         $booking_id = intval($booking_id);
         $user_id = intval($user_id);
+
+        if ($booking_id <= 0 && $request) {
+            $booking_id = intval($request->get_param('order_id') ?: ($request->get_param('booking_id') ?: $request->get_param('id')));
+        }
 
         $found = ZipBiz_Bookings::find_booking($booking_id);
         if (!$found || empty($found['row'])) {
@@ -562,21 +566,17 @@ class ZipBiz_Vendor {
 
         $actual_id = intval($row['id']);
 
+        // 1. Call Listeo Core's native set_booking_status FIRST so hooks, emails, and order updates fire
+        if (class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
+            @Listeo_Core_Bookings_Calendar::set_booking_status($actual_id, $new_status);
+        }
+
+        // 2. Ensure direct database update in bookings_calendar
         if (!empty($found['is_post'])) {
             wp_update_post(array('ID' => $actual_id, 'post_status' => $new_status));
         } else {
-            $table = $found['table'];
+            $table = $found['table'] ?: ($wpdb->prefix . 'bookings_calendar');
             $wpdb->update($table, array('status' => $new_status), array('id' => $actual_id));
-
-            // Also synchronize with alternate calendar table if exists
-            $alt_table = ($table === $wpdb->prefix . 'bookings_calendar') ? $wpdb->prefix . 'bookings' : $wpdb->prefix . 'bookings_calendar';
-            if ($wpdb->get_var("SHOW TABLES LIKE '$alt_table'") == $alt_table) {
-                $wpdb->update($alt_table, array('status' => $new_status), array('id' => $actual_id));
-            }
-        }
-
-        if (class_exists('Listeo_Core_Bookings_Calendar') && method_exists('Listeo_Core_Bookings_Calendar', 'set_booking_status')) {
-            @Listeo_Core_Bookings_Calendar::set_booking_status($actual_id, $new_status);
         }
 
         // Sync with WooCommerce order if attached
@@ -616,12 +616,17 @@ class ZipBiz_Vendor {
         if (!$user) {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
+        $booking_id = intval($request['id']);
+        if ($booking_id <= 0) {
+            $booking_id = intval($request->get_param('order_id') ?: ($request->get_param('booking_id') ?: 0));
+        }
         return $this->update_booking_status(
-            intval($request['id']),
+            $booking_id,
             $user->ID,
             'confirmed',
             'Booking Accepted! 👍',
-            'Your service professional has confirmed your appointment.'
+            'Your service professional has confirmed your appointment.',
+            $request
         );
     }
 
@@ -630,12 +635,17 @@ class ZipBiz_Vendor {
         if (!$user) {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
+        $booking_id = intval($request['id']);
+        if ($booking_id <= 0) {
+            $booking_id = intval($request->get_param('order_id') ?: ($request->get_param('booking_id') ?: 0));
+        }
         return $this->update_booking_status(
-            intval($request['id']),
+            $booking_id,
             $user->ID,
             'rejected',
             'Booking Rejected',
-            'Your service provider was unable to accept this booking request.'
+            'Your service provider was unable to accept this booking request.',
+            $request
         );
     }
 
@@ -645,12 +655,16 @@ class ZipBiz_Vendor {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
         $booking_id = intval($request['id']);
+        if ($booking_id <= 0) {
+            $booking_id = intval($request->get_param('order_id') ?: ($request->get_param('booking_id') ?: 0));
+        }
         return $this->update_booking_status(
             $booking_id,
             $user->ID,
             'cancelled',
             'Booking Cancelled ❌',
-            "Your service appointment #ZB-{$booking_id} has been cancelled by the service provider."
+            "Your service appointment #{$booking_id} has been cancelled by the service provider.",
+            $request
         );
     }
 
@@ -660,6 +674,9 @@ class ZipBiz_Vendor {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
         $booking_id = intval($request['id']);
+        if ($booking_id <= 0) {
+            $booking_id = intval($request->get_param('order_id') ?: ($request->get_param('booking_id') ?: 0));
+        }
         $otp = trim(sanitize_text_field($request->get_param('otp') ?: ''));
 
         if (!empty($otp)) {
@@ -718,6 +735,9 @@ class ZipBiz_Vendor {
             return ZipBiz_REST_API::error_response('UNAUTHORIZED', 'User not authenticated', 401);
         }
         $booking_id = intval($request['id']);
+        if ($booking_id <= 0) {
+            $booking_id = intval($request->get_param('order_id') ?: ($request->get_param('booking_id') ?: 0));
+        }
         $otp = trim(sanitize_text_field($request->get_param('otp') ?: ''));
 
         if (!empty($otp)) {

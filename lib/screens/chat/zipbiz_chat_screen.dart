@@ -36,7 +36,7 @@ class _ZipBizChatScreenState extends State<ZipBizChatScreen> {
     {
       'id': '2',
       'name': 'ZipBiz Support Team',
-      'service': 'Booking #ZB-4912 Assistance',
+      'service': 'Booking #4912 Assistance',
       'location': 'Support Desk',
       'lastMessage': 'Your refund has been initiated and will reflect in 24 hours.',
       'time': '1 hour ago',

@@ -1920,10 +1920,11 @@ class Product {
           }
         }
       }
-      if (pureTaxonomies != null && pureTaxonomies is Map) {
+      final pureTax = pureTaxonomies;
+      if (pureTax != null && pureTax is Map) {
         for (var key in ['listing_category', 'service_category', 'category']) {
-          if (pureTaxonomies[key] is List) {
-            for (var term in pureTaxonomies[key]) {
+          if (pureTax[key] is List) {
+            for (var term in pureTax[key]) {
               if (term is Map) {
                 final cId = term['term_id']?.toString() ?? term['id']?.toString();
                 final cName = term['name']?.toString() ?? '';

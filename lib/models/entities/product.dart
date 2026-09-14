@@ -1903,6 +1903,10 @@ class Product {
           if (termGroup is List) {
             for (var term in termGroup) {
               if (term is Map) {
+                final tax = (term['taxonomy'] ?? '').toString();
+                if (tax.isNotEmpty && !tax.contains('categor')) {
+                  continue;
+                }
                 final cId = term['id']?.toString() ?? term['term_id']?.toString();
                 final cName = term['name']?.toString() ?? '';
                 final cSlug = term['slug']?.toString() ?? '';

@@ -120,43 +120,43 @@ class ZipBiz_Bookings {
             return null;
         }
 
-        $tables = array();
-        // Check all possible Listeo/booking table names
-        $candidate_tables = array(
+        // 1. Immediately search the active primary bookings table
+        $primary_table = self::get_bookings_table();
+        if (!empty($primary_table)) {
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $primary_table WHERE id = %d", $booking_id), ARRAY_A);
+            if ($row && !empty($row['id'])) {
+                return array('row' => $row, 'table' => $primary_table, 'is_post' => false);
+            }
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $primary_table WHERE order_id = %d", $booking_id), ARRAY_A);
+            if ($row && !empty($row['id'])) {
+                return array('row' => $row, 'table' => $primary_table, 'is_post' => false);
+            }
+        }
+
+        // 2. Search all candidate booking tables
+        $tables = array(
             $wpdb->prefix . 'bookings_calendar',
             $wpdb->prefix . 'listeo_core_bookings_calendar',
             $wpdb->prefix . 'bookings',
             $wpdb->prefix . 'listeo_bookings',
         );
-        foreach ($candidate_tables as $ct) {
-            if ($wpdb->get_var("SHOW TABLES LIKE '$ct'") === $ct && !in_array($ct, $tables)) {
-                $tables[] = $ct;
-            }
-        }
+        $tables = array_unique($tables);
 
-        // 1. Search by row ID in all booking tables
         foreach ($tables as $t) {
+            if ($t === $primary_table) continue;
             $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $booking_id), ARRAY_A);
-            if ($row) {
+            if ($row && !empty($row['id'])) {
                 return array('row' => $row, 'table' => $t, 'is_post' => false);
             }
-        }
-
-        // 2. Search by order_id in all booking tables
-        foreach ($tables as $t) {
-            // Check if order_id column exists in this table
-            $cols = $wpdb->get_col("SHOW COLUMNS FROM $t", 0);
-            if (in_array('order_id', $cols)) {
-                $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE order_id = %d", $booking_id), ARRAY_A);
-                if ($row) {
-                    return array('row' => $row, 'table' => $t, 'is_post' => false);
-                }
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE order_id = %d", $booking_id), ARRAY_A);
+            if ($row && !empty($row['id'])) {
+                return array('row' => $row, 'table' => $t, 'is_post' => false);
             }
         }
 
         // 3. Check custom post type 'booking'
         $post = get_post($booking_id);
-        if ($post && $post->post_type === 'booking') {
+        if ($post && ($post->post_type === 'booking' || $post->post_type === 'listing_booking')) {
             $data = get_post_meta($booking_id, '_booking_data', true) ?: array();
             $status = get_post_meta($booking_id, '_status', true) ?: $post->post_status;
             $price = get_post_meta($booking_id, '_price', true) ?: '0';
@@ -870,18 +870,6 @@ class ZipBiz_Bookings {
         $per_page = min(50, max(1, intval($request->get_param('per_page') ?: 20)));
         $offset = ($page - 1) * $per_page;
 
-        // Auto-cancellation sweep for customer bookings
-        $wpdb->query(
-            "UPDATE $table_name 
-             SET status = 'cancelled' 
-             WHERE status IN ('waiting', 'pending') 
-             AND (
-                 (created IS NOT NULL AND created != '0000-00-00 00:00:00' AND created < DATE_SUB(NOW(), INTERVAL 24 HOUR))
-                 OR
-                 (date_start IS NOT NULL AND date_start != '0000-00-00 00:00:00' AND date_start < NOW())
-             )"
-        );
-
         $where = "WHERE bookings_author = $user_id";
         if ($status !== 'all') {
             if ($status === 'upcoming') {
@@ -906,13 +894,22 @@ class ZipBiz_Bookings {
                     $comment_data = array();
                 }
                 $feat_img = $listing ? (get_the_post_thumbnail_url($listing->ID, 'medium') ?: (get_post_meta($listing->ID, '_featured_image_url', true) ?: '')) : '';
-                $comment_str = (!empty($raw_comment) && is_string($raw_comment) && strpos($raw_comment, '{') !== false)
-                    ? $raw_comment
-                    : json_encode($comment_data ?: array('adults' => '1', 'service' => array()));
 
                 $b_id = intval($r['id']);
                 $start_otp = $comment_data['start_otp'] ?? strval((($b_id * 31 + 1729) % 9000) + 1000);
                 $finish_otp = $comment_data['finish_otp'] ?? strval((($b_id * 47 + 2468) % 9000) + 1000);
+
+                // Persist OTPs in database if they weren't stored previously
+                if (empty($comment_data['start_otp'])) {
+                    $comment_data['start_otp'] = $start_otp;
+                    $comment_data['finish_otp'] = $finish_otp;
+                    $comment_data['booking_id'] = $b_id;
+                    $wpdb->update($table_name, array('comment' => json_encode($comment_data)), array('id' => $b_id));
+                }
+
+                $comment_str = (!empty($raw_comment) && is_string($raw_comment) && strpos($raw_comment, '{') !== false)
+                    ? $raw_comment
+                    : json_encode($comment_data ?: array('adults' => '1', 'service' => array()));
 
                 $items[] = array_merge($comment_data, array(
                     'id'             => $b_id,

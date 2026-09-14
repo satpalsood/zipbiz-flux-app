@@ -255,9 +255,10 @@ class _ZipBizServicesDirectoryScreenState
         });
         if (hasCatMatch) return true;
 
-        // 2. Check pureTaxonomies
-        if (p.pureTaxonomies != null) {
-          for (final taxList in p.pureTaxonomies!.values) {
+        // 2. Check pureTaxonomies safely
+        if (p.pureTaxonomies != null && p.pureTaxonomies is Map) {
+          final pTax = p.pureTaxonomies as Map;
+          for (final taxList in pTax.values) {
             if (taxList is List) {
               for (final term in taxList) {
                 if (term is Map) {
@@ -272,16 +273,29 @@ class _ZipBizServicesDirectoryScreenState
           }
         }
 
-        // 3. Check listingMenu (services offered)
+        // 3. Check listingMenu (services offered) safely
         if (p.listingMenu != null && p.listingMenu!.isNotEmpty) {
           for (final m in p.listingMenu!) {
-            final mName = (m.name ?? '').toLowerCase();
-            if (mName.contains(cat) || cat.contains(mName)) return true;
-            if (m.menuPrices != null) {
-              for (final mp in m.menuPrices!) {
-                final mpTitle = (mp.title ?? '').toLowerCase();
-                final mpDesc = (mp.description ?? '').toLowerCase();
-                if (mpTitle.contains(cat) || mpDesc.contains(cat)) return true;
+            if (m is ListingMenu) {
+              final mTitle = (m.title ?? '').toLowerCase();
+              if (mTitle.contains(cat) || cat.contains(mTitle)) return true;
+              for (final elem in m.menu) {
+                final eName = (elem.name ?? '').toLowerCase();
+                final eDesc = (elem.description ?? '').toLowerCase();
+                if (eName.contains(cat) || cat.contains(eName) || eDesc.contains(cat)) return true;
+              }
+            } else if (m is Map) {
+              final mTitle = (m['title'] ?? m['menu_title'] ?? '').toString().toLowerCase();
+              if (mTitle.contains(cat) || cat.contains(mTitle)) return true;
+              final elements = m['menu_elements'] ?? m['menu'];
+              if (elements is List) {
+                for (final elem in elements) {
+                  if (elem is Map) {
+                    final eName = (elem['name'] ?? '').toString().toLowerCase();
+                    final eDesc = (elem['description'] ?? '').toString().toLowerCase();
+                    if (eName.contains(cat) || cat.contains(eName) || eDesc.contains(cat)) return true;
+                  }
+                }
               }
             }
           }
@@ -882,11 +896,23 @@ class _ZipBizServicesDirectoryScreenState
     if (product.listingMenu != null && product.listingMenu!.isNotEmpty) {
       double lowest = double.infinity;
       for (final menu in product.listingMenu!) {
-        if (menu.menuPrices != null) {
-          for (final mp in menu.menuPrices!) {
-            final pVal = double.tryParse(mp.price ?? '');
+        if (menu is ListingMenu) {
+          for (final elem in menu.menu) {
+            final pVal = double.tryParse(elem.price ?? '');
             if (pVal != null && pVal > 0 && pVal < lowest) {
               lowest = pVal;
+            }
+          }
+        } else if (menu is Map) {
+          final elements = menu['menu_elements'] ?? menu['menu'];
+          if (elements is List) {
+            for (final elem in elements) {
+              if (elem is Map) {
+                final pVal = double.tryParse('${elem['price'] ?? ''}');
+                if (pVal != null && pVal > 0 && pVal < lowest) {
+                  lowest = pVal;
+                }
+              }
             }
           }
         }

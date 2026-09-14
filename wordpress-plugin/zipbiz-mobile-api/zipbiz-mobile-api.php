@@ -389,6 +389,25 @@ function zipbiz_rest_prepare_listing_meta($response, $post, $request) {
         $data['listing_data']['coupons'] = $available_coupons;
     }
 
+    // Enrich with taxonomy categories for seamless client-side filtering
+    $terms = wp_get_post_terms($listing_id, array('listing_category', 'service_category', 'category'), array('fields' => 'all'));
+    if (!empty($terms) && !is_wp_error($terms)) {
+        $cats_arr = array();
+        foreach ($terms as $t) {
+            $cats_arr[] = array(
+                'id'       => $t->term_id,
+                'name'     => $t->name,
+                'slug'     => $t->slug,
+                'taxonomy' => $t->taxonomy,
+            );
+        }
+        $data['categories'] = $cats_arr;
+        $data['listing_category_names'] = wp_list_pluck($terms, 'name');
+        if (empty($data['category_name']) && !empty($cats_arr)) {
+            $data['category_name'] = $cats_arr[0]['name'];
+        }
+    }
+
     $response->set_data($data);
     return $response;
 }

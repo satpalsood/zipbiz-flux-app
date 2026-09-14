@@ -201,11 +201,24 @@ class _ZipBizServicesDirectoryScreenState
       }
 
       final query = _searchController.text.trim();
-      final results = await Services().api.fetchProductsByCategory(
+      var results = await Services().api.fetchProductsByCategory(
         page: 1,
         categoryId: categoryId,
         search: query.isNotEmpty ? query : null,
       );
+
+      // If server filtered by category ID returned 0 results, fall back to fetching all listings
+      // so client-side taxonomy & keyword matching can find the relevant listings
+      if ((results == null || results.isEmpty) && categoryId != null) {
+        final allResults = await Services().api.fetchProductsByCategory(
+          page: 1,
+          search: query.isNotEmpty ? query : null,
+        );
+        if (allResults != null && allResults.isNotEmpty) {
+          results = allResults;
+          isPreFiltered = false;
+        }
+      }
 
       if (mounted) {
         setState(() {
@@ -234,32 +247,62 @@ class _ZipBizServicesDirectoryScreenState
         final name = (p.name ?? '').toLowerCase();
         final desc = (p.description ?? '').toLowerCase();
 
-        // Check if any product category object matches
+        // 1. Check if any product category object matches
         final hasCatMatch = p.categories.any((c) {
           final cName = (c.name ?? '').toLowerCase();
           final cSlug = (c.slug ?? '').toLowerCase();
-          return cName.contains(cat) || cSlug.contains(cat) || cat.contains(cName);
+          return cName.contains(cat) || cSlug.contains(cat) || cat.contains(cName) || cat.contains(cSlug);
         });
         if (hasCatMatch) return true;
 
-        if (cat == 'maid') {
-          // Strictly maid services, exclude deep cleaning
-          return (pCat.contains('maid') || pType.contains('maid') || name.contains('maid') || desc.contains('maid')) &&
-                 !name.contains('deep clean') && !pCat.contains('cleaner');
-        } else if (cat == 'cleaner') {
-          // Strictly cleaning services, exclude maid
-          return (pCat.contains('clean') || pType.contains('clean') || name.contains('clean') || desc.contains('clean')) &&
-                 !name.contains('maid') && !pCat.contains('maid');
-        } else if (cat == 'electrician') {
+        // 2. Check pureTaxonomies
+        if (p.pureTaxonomies != null) {
+          for (final taxList in p.pureTaxonomies!.values) {
+            if (taxList is List) {
+              for (final term in taxList) {
+                if (term is Map) {
+                  final tName = (term['name'] ?? '').toString().toLowerCase();
+                  final tSlug = (term['slug'] ?? '').toString().toLowerCase();
+                  if (tName.contains(cat) || cat.contains(tName) || tSlug.contains(cat) || cat.contains(tSlug)) {
+                    return true;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // 3. Check listingMenu (services offered)
+        if (p.listingMenu != null && p.listingMenu!.isNotEmpty) {
+          for (final m in p.listingMenu!) {
+            final mName = (m.name ?? '').toLowerCase();
+            if (mName.contains(cat) || cat.contains(mName)) return true;
+            if (m.menuPrices != null) {
+              for (final mp in m.menuPrices!) {
+                final mpTitle = (mp.title ?? '').toLowerCase();
+                final mpDesc = (mp.description ?? '').toLowerCase();
+                if (mpTitle.contains(cat) || mpDesc.contains(cat)) return true;
+              }
+            }
+          }
+        }
+
+        // 4. Keyword-specific matching
+        if (cat.contains('electr')) {
           return pCat.contains('electr') || pType.contains('electr') || name.contains('electr') || desc.contains('electr');
-        } else if (cat == 'plumber') {
+        } else if (cat.contains('plumb')) {
           return pCat.contains('plumb') || pType.contains('plumb') || name.contains('plumb') || desc.contains('plumb');
+        } else if (cat.contains('clean')) {
+          return (pCat.contains('clean') || pType.contains('clean') || name.contains('clean') || desc.contains('clean')) &&
+                 !name.contains('maid');
+        } else if (cat.contains('maid')) {
+          return (pCat.contains('maid') || pType.contains('maid') || name.contains('maid') || desc.contains('maid') || name.contains('cook'));
         } else if (cat.contains('salon') || cat.contains('beauty')) {
-          return pCat.contains('salon') || pCat.contains('beauty') || name.contains('salon') || name.contains('beauty') || name.contains('parlour') || desc.contains('salon');
-        } else if (cat == 'appliance') {
-          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('appliance') || name.contains('repair') || name.contains('ac') || desc.contains('appliance');
-        } else if (cat == 'carpenter') {
-          return pCat.contains('carpent') || pType.contains('carpent') || name.contains('carpent') || desc.contains('carpent');
+          return pCat.contains('salon') || pCat.contains('beauty') || name.contains('salon') || name.contains('beauty') || name.contains('parlour') || desc.contains('salon') || desc.contains('beauty');
+        } else if (cat.contains('appliance') || cat.contains('repair')) {
+          return pCat.contains('appliance') || pType.contains('appliance') || name.contains('appliance') || name.contains('repair') || name.contains('ac') || desc.contains('appliance') || desc.contains('repair');
+        } else if (cat.contains('carpent')) {
+          return pCat.contains('carpent') || pType.contains('carpent') || name.contains('carpent') || desc.contains('carpent') || name.contains('wood');
         } else if (cat.contains('care')) {
           return pCat.contains('care') || pType.contains('care') || name.contains('care') || name.contains('giver') || name.contains('elderly') || desc.contains('care');
         } else {

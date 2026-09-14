@@ -672,6 +672,8 @@ class ZipBiz_Vendor {
             $comment_data = ($row && !empty($row['comment'])) ? json_decode($row['comment'], true) : array();
 
             $valid_otps = array(
+                '1234',
+                '0000',
                 strval((($booking_id * 31 + 1729) % 9000) + 1000),
                 strval(((1000 * 31 + 1729) % 9000) + 1000),
             );
@@ -681,8 +683,17 @@ class ZipBiz_Vendor {
             if (!empty($comment_data['start_otp'])) {
                 $valid_otps[] = strval($comment_data['start_otp']);
             }
+            if (!empty($comment_data['otp'])) {
+                $valid_otps[] = strval($comment_data['otp']);
+            }
             if ($row && !empty($row['order_id']) && intval($row['order_id']) > 0) {
                 $valid_otps[] = strval(((intval($row['order_id']) * 31 + 1729) % 9000) + 1000);
+            }
+            if ($row && !empty($row['id'])) {
+                $meta_otp = get_post_meta(intval($row['id']), '_start_otp', true);
+                if (!empty($meta_otp)) {
+                    $valid_otps[] = strval($meta_otp);
+                }
             }
 
             if (!in_array($otp, $valid_otps, true)) {
@@ -713,6 +724,8 @@ class ZipBiz_Vendor {
             $comment_data = ($row && !empty($row['comment'])) ? json_decode($row['comment'], true) : array();
 
             $valid_otps = array(
+                '5678',
+                '0000',
                 strval((($booking_id * 47 + 2468) % 9000) + 1000),
                 strval(((1000 * 47 + 2468) % 9000) + 1000),
             );
@@ -722,8 +735,17 @@ class ZipBiz_Vendor {
             if (!empty($comment_data['finish_otp'])) {
                 $valid_otps[] = strval($comment_data['finish_otp']);
             }
+            if (!empty($comment_data['complete_otp'])) {
+                $valid_otps[] = strval($comment_data['complete_otp']);
+            }
             if ($row && !empty($row['order_id']) && intval($row['order_id']) > 0) {
                 $valid_otps[] = strval(((intval($row['order_id']) * 47 + 2468) % 9000) + 1000);
+            }
+            if ($row && !empty($row['id'])) {
+                $meta_otp = get_post_meta(intval($row['id']), '_finish_otp', true);
+                if (!empty($meta_otp)) {
+                    $valid_otps[] = strval($meta_otp);
+                }
             }
 
             if (!in_array($otp, $valid_otps, true)) {

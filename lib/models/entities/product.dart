@@ -1887,6 +1887,67 @@ class Product {
       if (categories is List && List.from(categories).isNotEmpty) {
         categoryId = '${List.from(categories).first}';
       }
+
+      // Populate this.categories for rich category mapping & client filtering
+      if (json['categories'] is List) {
+        for (var item in json['categories']) {
+          if (item is Map) {
+            try {
+              this.categories.add(Category.fromJson(item));
+            } catch (_) {}
+          }
+        }
+      }
+      if (json['_embedded'] is Map && json['_embedded']['wp:term'] is List) {
+        for (var termGroup in json['_embedded']['wp:term']) {
+          if (termGroup is List) {
+            for (var term in termGroup) {
+              if (term is Map) {
+                final cId = term['id']?.toString() ?? term['term_id']?.toString();
+                final cName = term['name']?.toString() ?? '';
+                final cSlug = term['slug']?.toString() ?? '';
+                if (cName.isNotEmpty && !this.categories.any((c) => c.id == cId || c.name == cName)) {
+                  try {
+                    this.categories.add(Category.fromJson({
+                      'id': cId,
+                      'name': cName,
+                      'slug': cSlug,
+                    }));
+                  } catch (_) {}
+                }
+              }
+            }
+          }
+        }
+      }
+      if (pureTaxonomies != null && pureTaxonomies is Map) {
+        for (var key in ['listing_category', 'service_category', 'category']) {
+          if (pureTaxonomies[key] is List) {
+            for (var term in pureTaxonomies[key]) {
+              if (term is Map) {
+                final cId = term['term_id']?.toString() ?? term['id']?.toString();
+                final cName = term['name']?.toString() ?? '';
+                final cSlug = term['slug']?.toString() ?? '';
+                if (cName.isNotEmpty && !this.categories.any((c) => c.id == cId || c.name == cName)) {
+                  try {
+                    this.categories.add(Category.fromJson({
+                      'id': cId,
+                      'name': cName,
+                      'slug': cSlug,
+                    }));
+                  } catch (_) {}
+                }
+              }
+            }
+          }
+        }
+      }
+      if (this.categories.isNotEmpty) {
+        categoryName = this.categories.first.name ?? type;
+        if (categoryId == null || categoryId!.isEmpty) {
+          categoryId = this.categories.first.id;
+        }
+      }
       averageRating = double.tryParse(
           '${Tools.getValueByKey(json, DataMapping().kProductDataMapping['rating'])}');
       averageRating = averageRating ?? 0.0;
